@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#800c1f">
+  <title>Track cargo · Horse Cargo</title>
+  <link rel="icon" href="icons/favicon-96.png">
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    .hero { background: radial-gradient(900px 400px at 20% 0%, #a3223a 0%, #800c1f 60%, #4a0612 100%); color: #fff; padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 90px; }
+    .hero .in { max-width: 720px; margin: 0 auto; }
+    .hero h1 { font-size: 28px; margin: 18px 0 6px; }
+    .hero p { color: #f0d3d9; margin: 0; }
+    .wrap { max-width: 720px; margin: -60px auto 40px; padding: 0 16px; }
+    .big { font-size: 18px; min-height: 52px; }
+    .hero .lang-toggle button.on { background: #fff; color: #800c1f; }
+    .status-big { font-size: 22px; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <div class="hero"><div class="in">
+    <div class="row" style="justify-content:space-between">
+      <img src="img/logo-white.png" alt="Horse Cargo" style="height:92px;width:auto">
+      <div class="lang-toggle" style="background:transparent;border-color:rgba(255,255,255,.3)"><button data-l="en">EN</button><button data-l="sw">SW</button></div>
+    </div>
+    <h1 data-t="title"></h1><p data-t="sub"></p>
+  </div></div>
+  <div class="wrap stack">
+    <form class="card card-b row" id="f" style="flex-wrap:nowrap">
+      <input class="input mono big" id="ref" placeholder="HC-BK-2609-0001" autocapitalize="characters" autocomplete="off" style="flex:1">
+      <button class="btn accent big" type="submit" data-t="go"></button>
+    </form>
+    <div id="out"></div>
+    <p class="muted small" style="text-align:center" id="foot"></p>
+  </div>
+  <script src="config.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script>
+  (function () {
+    var T = {
+      en: { title: 'Track your cargo', sub: 'Enter the booking number on your receipt or carton label.', go: 'Track', nf: 'No shipment found with that number. Check the number or contact our office.', eta: 'ETA', pcs: 'pieces', cont: 'Container', err: 'Could not connect. Please try again.', help: 'Questions? Dubai +971 50 608 3531 · Dar es Salaam +255 778 222 251 · Mwanza +255 797 000 254',
+        s: { pending_deposit: 'Awaiting deposit', booked: 'Booked', received: 'Received at warehouse', loaded: 'Loaded', in_transit: 'In transit', arrived: 'Arrived', clearing: 'Customs clearance', ready: 'Ready for collection', released: 'Collected' }, sea: 'Sea freight', air: 'Air freight' },
+      sw: { title: 'Fuatilia mzigo wako', sub: 'Weka namba ya booking iliyo kwenye risiti au lebo ya katoni.', go: 'Fuatilia', nf: 'Hakuna mzigo wenye namba hiyo. Hakikisha namba au wasiliana na ofisi yetu.', eta: 'Kufika', pcs: 'vipande', cont: 'Kontena', err: 'Imeshindwa kuunganisha. Jaribu tena.', help: 'Maswali? Dubai +971 50 608 3531 · Dar es Salaam +255 778 222 251 · Mwanza +255 797 000 254',
+        s: { pending_deposit: 'Inasubiri amana', booked: 'Imethibitishwa', received: 'Imepokelewa ghalani', loaded: 'Imepakiwa', in_transit: 'Njiani', arrived: 'Imefika', clearing: 'Forodhani', ready: 'Tayari kuchukuliwa', released: 'Imechukuliwa' }, sea: 'Usafiri wa bahari', air: 'Usafiri wa anga' }
+    };
+    var EV = [[/^Booking created$/, 'Booking imeundwa'], [/^Awaiting deposit$/, 'Inasubiri amana'], [/^Booking confirmed$/, 'Booking imethibitishwa'], [/^Deposit received — deliver cargo to the warehouse$/, 'Amana imepokelewa — leta mzigo ghalani'], [/^Cargo received at warehouse$/, 'Mzigo umepokelewa ghalani'], [/^Loaded for shipment$/, 'Umepakiwa kwa safari'], [/^Departed (\w+)$/, 'Umeondoka $1'], [/^Arrived at (\w+)$/, 'Umefika $1'], [/^Customs clearance in progress$/, 'Unashughulikiwa forodhani'], [/^Ready for collection$/, 'Tayari kuchukuliwa'], [/^Cargo collected$/, 'Mzigo umechukuliwa'], [/^Released to (.+)$/, 'Umekabidhiwa kwa $1'], [/^Container (.+)$/, 'Kontena $1']];
+    function tr(x) { if (lang !== 'sw' || !x) return x; for (var i = 0; i < EV.length; i++) if (EV[i][0].test(x)) return x.replace(EV[i][0], EV[i][1]); return x; }
+    var names = { DXB: 'Dubai', DAR: 'Dar es Salaam', MWZ: 'Mwanza' };
+    var lang = (localStorage.getItem('hc.lang') || (navigator.language || '').slice(0, 2)) === 'sw' ? 'sw' : 'en';
+    var cfg = window.HC_CONFIG || {};
+    var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+    var last = null;
+    function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function applyLang() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll('[data-t]').forEach(function (e) { e.textContent = T[lang][e.dataset.t]; });
+      document.querySelectorAll('[data-l]').forEach(function (b) { b.className = b.dataset.l === lang ? 'on' : ''; b.style.color = b.dataset.l === lang ? '' : '#f3dde1'; });
+      document.getElementById('foot').textContent = T[lang].help;
+      if (last) draw(last);
+    }
+    function fmt(d) { return new Date(d).toLocaleString(lang === 'sw' ? 'sw-TZ' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    function draw(r) {
+      var L = T[lang], out = document.getElementById('out');
+      if (!r) { out.innerHTML = '<div class="callout warn">' + esc(L.nf) + '</div>'; return; }
+      out.innerHTML = '<div class="card"><div class="card-b stack" style="gap:8px">' +
+        '<div class="row" style="justify-content:space-between"><span class="mono" style="font-weight:700">' + esc(r.ref) + '</span><span class="badge s-' + esc(r.status) + '">' + esc(L.s[r.status] || r.status) + '</span></div>' +
+        '<div class="status-big">' + esc(names[r.origin] || r.origin) + ' → ' + esc(names[r.destination] || r.destination) + '</div>' +
+        '<div class="muted">' + esc(L[r.mode]) + ' · ' + esc(r.pieces) + ' ' + esc(L.pcs) + (r.cbm ? ' · ' + esc(r.cbm) + ' CBM' : '') + ' · ' + esc(r.consignee) + '</div>' +
+        (r.eta ? '<div><b>' + esc(L.eta) + ':</b> ' + esc(new Date(r.eta).toLocaleDateString(lang === 'sw' ? 'sw-TZ' : 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' })) + (r.container_no ? ' · ' + esc(L.cont) + ' ' + esc(r.container_no) : '') + '</div>' : '') +
+        '</div><div class="card-b" style="border-top:1px solid var(--line-2)"><ul class="timeline">' +
+        (r.events || []).map(function (e) { return '<li><div class="tt">' + esc(tr(e.title)) + '</div>' + (e.note ? '<div class="tn">' + esc(tr(e.note)) + '</div>' : '') + '<div class="tm">' + esc(e.location ? (names[e.location] || e.location) + ' · ' : '') + esc(fmt(e.at)) + '</div></li>'; }).join('') +
+        '</ul></div></div>';
+    }
+    async function track(ref) {
+      ref = (ref || '').trim().toUpperCase(); if (!ref) return;
+      var m = ref.match(/HC-BK-\d{4}-\d{4,}/); if (m) ref = m[0];
+      document.getElementById('ref').value = ref;
+      history.replaceState(null, '', '?ref=' + encodeURIComponent(ref));
+      document.getElementById('out').innerHTML = '<div class="boot" style="min-height:120px"><div class="spinner"></div></div>';
+      var res = await sb.rpc('track_shipment', { p_ref: ref });
+      if (res.error) { document.getElementById('out').innerHTML = '<div class="callout danger">' + esc(T[lang].err) + '</div>'; return; }
+      last = res.data; draw(res.data);
+    }
+    document.getElementById('f').onsubmit = function (e) { e.preventDefault(); track(document.getElementById('ref').value); };
+    document.querySelectorAll('[data-l]').forEach(function (b) { b.onclick = function () { lang = b.dataset.l; try { localStorage.setItem('hc.lang', lang); } catch (e) {} applyLang(); }; });
+    applyLang();
+    var q = new URLSearchParams(location.search).get('ref'); if (q) track(q);
+  })();
+  </script>
+</body>
+</html>
