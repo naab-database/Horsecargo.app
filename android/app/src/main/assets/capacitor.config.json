@@ -1,0 +1,12 @@
+{
+	"appId": "com.horsecargoltd.app",
+	"appName": "Horse Cargo",
+	"webDir": "www",
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#0f2a44"
+	},
+	"server": {
+		"androidScheme": "https"
+	}
+}
