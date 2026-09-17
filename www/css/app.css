@@ -371,3 +371,72 @@ textarea.input { min-height: 72px; resize: vertical; }
 .doc .dh .logo-tile { width: 64px; height: 64px; flex: none; }
 .doc .dh .logo-tile img { width: 50px; height: auto; }
 .topbar .mobile-brand { height: 26px; width: auto; border-radius: 0; }
+
+/* ───────── animated login ───────── */
+.login { position: relative; min-height: 100vh; min-height: 100svh; overflow: hidden; color: #fff;
+  background: radial-gradient(900px 520px at 50% 34%, #a3223a 0%, var(--brand) 52%, #4a0612 100%); }
+.login-scene { position: absolute; inset: 0; pointer-events: none; }
+.login-lang { position: absolute; z-index: 3; top: calc(16px + var(--safe-top)); right: 16px; }
+.login-lang .lang-toggle { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.28); }
+.login-lang .lang-toggle button { color: #f3dde1; }
+.login-lang .lang-toggle button.on { background: #fff; color: var(--brand); }
+.login-center { position: relative; z-index: 2; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: calc(88px + var(--safe-top)) 16px calc(120px + var(--safe-bottom)); gap: 14px; }
+
+.login-logo { position: relative; width: 196px; animation: hcLogoIn 1.1s cubic-bezier(.2,.8,.2,1) both, hcFloat 6s ease-in-out 1.2s infinite; }
+.login-logo img { display: block; width: 100%; height: auto; filter: drop-shadow(0 8px 24px rgba(0,0,0,.25)); }
+.login-logo::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  -webkit-mask: url(../img/logo-white.png) center / contain no-repeat; mask: url(../img/logo-white.png) center / contain no-repeat;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,240,200,.95) 50%, transparent 62%) -140% 0 / 250% 100% no-repeat;
+  animation: hcShine 5.5s ease-in-out 1.4s infinite; }
+.login-tagline { margin: 0; font-size: 15px; color: #f0d3d9; text-align: center; max-width: 340px; animation: hcRise .8s ease-out .45s both; }
+.login-card { width: 100%; max-width: 380px; background: #fff; color: var(--ink); border-radius: 18px; padding: 24px 22px 18px;
+  box-shadow: 0 24px 60px rgba(40,0,10,.35), 0 2px 6px rgba(40,0,10,.15); animation: hcRise .8s cubic-bezier(.2,.8,.2,1) .6s both; }
+.login-card h1 { font-size: 20px; margin-bottom: 16px; }
+.login-lanes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; animation: hcRise .8s ease-out .8s both; }
+.login-lanes span { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.06); border-radius: 999px; padding: 4px 11px; font-size: 12px; color: #f7e4e8; }
+
+.login .routes { position: absolute; top: calc(8px + var(--safe-top)); left: 50%; transform: translateX(-50%); width: min(1200px, 100%); height: auto; overflow: visible; }
+.login .routes text { fill: rgba(255,255,255,.7); font: 600 13px var(--font); letter-spacing: .12em; }
+.login .route-draw { stroke-dasharray: 100; stroke-dashoffset: 100; animation: hcDraw 9s linear infinite; }
+
+.cloud { position: absolute; height: 40px; border-radius: 40px; background: rgba(255,255,255,.07); filter: blur(2px); }
+.cloud::before, .cloud::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
+.cloud::before { width: 50%; height: 150%; left: 15%; top: -60%; }
+.cloud::after { width: 35%; height: 120%; right: 15%; top: -40%; }
+.cloud.c1 { width: 160px; top: 22%; animation: hcDrift 70s linear infinite; }
+.cloud.c2 { width: 110px; top: 44%; animation: hcDrift 95s linear -40s infinite; opacity: .7; }
+.cloud.c3 { width: 200px; top: 62%; animation: hcDrift 120s linear -80s infinite; opacity: .5; }
+
+.sea { position: absolute; left: 0; right: 0; bottom: 0; height: 110px; }
+.wave { position: absolute; bottom: 0; left: 0; width: 200%; height: 60px; animation: hcWave 16s linear infinite; }
+.wave path { fill: rgba(255,255,255,.08); }
+.wave.w2 { height: 48px; animation-duration: 11s; animation-direction: reverse; }
+.wave.w2 path { fill: rgba(0,0,0,.12); }
+.ship { position: absolute; bottom: 34px; left: 0; animation: hcSail 48s linear infinite; }
+.ship svg { display: block; opacity: .85; animation: hcBob 3.2s ease-in-out infinite; transform-origin: 50% 80%; }
+
+@keyframes hcLogoIn { from { opacity: 0; transform: translateY(24px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes hcFloat { 0%,100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+@keyframes hcShine { 0%, 55% { background-position: -140% 0; } 85%, 100% { background-position: 240% 0; } }
+@keyframes hcRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes hcDraw { 0% { stroke-dashoffset: 100; opacity: 1; } 90% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes hcDrift { from { transform: translateX(-260px); } to { transform: translateX(calc(100vw + 260px)); } }
+@keyframes hcWave { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes hcSail { from { transform: translateX(-160px); } to { transform: translateX(calc(100vw + 40px)); } }
+@keyframes hcBob { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-4px) rotate(1deg); } }
+
+@media (max-width: 860px) {
+  .login-logo { width: 150px; }
+  .login-center { padding-top: calc(96px + var(--safe-top)); gap: 12px; }
+  .login .routes text { font-size: 22px; }
+  .sea { height: 86px; }
+  .ship { bottom: 26px; }
+  .ship svg { width: 96px; height: 42px; }
+}
+@media (max-height: 700px) { .login-center { justify-content: flex-start; } .sea { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) {
+  .login *, .login *::before, .login *::after { animation: none !important; }
+  .login .plane { display: none; }
+  .login .route-draw { stroke-dashoffset: 0; }
+}
