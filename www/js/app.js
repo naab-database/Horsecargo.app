@@ -126,31 +126,60 @@ function renderSetup() {
     <h2>${esc(t('setup_needed'))}</h2><p class="muted">${esc(t('setup_body'))}</p></div></div>`;
 }
 
+function loginScene() {
+  // Decorative, animated background: flight routes with planes, drifting clouds, sea with a container ship.
+  const plane = '<path d="M24 0c0-1.8-2.6-3-5.5-3L-15-2.6-21.5-9h-3.2L-20.6 0l-4.1 9h3.2L-15 2.6 18.5 3C21.4 3 24 1.8 24 0Z"/><path d="M7-2.8-5.5-20h-5l6.3 17.2ZM7 2.8-5.5 20h-5l6.3-17.2Z"/>';
+  return `
+  <div class="login-scene" aria-hidden="true">
+    <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+    <svg class="routes" viewBox="0 0 1200 380" preserveAspectRatio="xMidYMin meet">
+      <path id="hc-route-out" d="M120 318 Q600 -258 1080 318" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2" stroke-dasharray="2 10" stroke-linecap="round"/>
+      <path id="hc-route-back" d="M1080 318 Q600 -170 120 318" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="2" stroke-dasharray="2 10" stroke-linecap="round"/>
+      <path class="route-draw" d="M120 318 Q600 -258 1080 318" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2.5" stroke-linecap="round" pathLength="100"/>
+      <g class="hub"><circle cx="120" cy="318" r="6" fill="#fff"/><circle cx="120" cy="318" r="6" fill="none" stroke="#fff" stroke-width="2"><animate attributeName="r" values="6;22" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0" dur="2.4s" repeatCount="indefinite"/></circle>
+        <text x="120" y="358" text-anchor="middle">DUBAI</text></g>
+      <g class="hub"><circle cx="1080" cy="318" r="6" fill="#fff"/><circle cx="1080" cy="318" r="6" fill="none" stroke="#fff" stroke-width="2"><animate attributeName="r" values="6;22" dur="2.4s" begin="1.2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+        <text x="1080" y="358" text-anchor="middle">DAR ES SALAAM</text></g>
+      <g class="plane" fill="#fff" opacity="0">${plane}
+        <animateMotion dur="9s" repeatCount="indefinite" rotate="auto"><mpath href="#hc-route-out"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.07;.93;1" dur="9s" repeatCount="indefinite"/></g>
+      <g class="plane" fill="#fff" opacity="0" transform="scale(.7)">${plane}
+        <animateMotion dur="14s" begin="4s" repeatCount="indefinite" rotate="auto"><mpath href="#hc-route-back"/></animateMotion>
+        <animate attributeName="opacity" values="0;.5;.5;0" keyTimes="0;.07;.93;1" dur="14s" begin="4s" repeatCount="indefinite"/></g>
+    </svg>
+    <div class="sea">
+      <div class="ship"><svg viewBox="0 0 130 56" width="130" height="56"><g fill="#fff">
+        <rect x="10" y="10" width="16" height="22" rx="1.5" opacity=".95"/><rect x="14" y="4" width="4" height="7" opacity=".8"/>
+        <rect x="30" y="20" width="18" height="12" opacity=".75"/><rect x="50" y="20" width="18" height="12" opacity=".9"/><rect x="70" y="20" width="18" height="12" opacity=".7"/><rect x="90" y="20" width="16" height="12" opacity=".85"/>
+        <rect x="40" y="9" width="18" height="10" opacity=".85"/><rect x="60" y="9" width="18" height="10" opacity=".65"/><rect x="80" y="9" width="16" height="10" opacity=".8"/>
+        <path d="M0 33h128l-12 17H9Z"/></g></svg></div>
+      <svg class="wave w1" viewBox="0 0 1440 80" preserveAspectRatio="none"><path d="M0 40c120-26 240-26 360 0s240 26 360 0 240-26 360 0 240 26 360 0v40H0Z"/></svg>
+      <svg class="wave w2" viewBox="0 0 1440 80" preserveAspectRatio="none"><path d="M0 46c120 22 240 22 360 0s240-22 360 0 240 22 360 0 240-22 360 0v34H0Z"/></svg>
+    </div>
+  </div>`;
+}
+
 function renderLogin(mode = 'login') {
   $('#app').innerHTML = `
-  <div class="auth">
-    <section class="auth-art">
-      <div><img class="auth-logo" src="img/logo-white.png" alt="Horse Cargo"></div>
-      <div><h1>${esc(t('auth_tagline'))}</h1><p>${esc(t('auth_sub'))}</p></div>
-      <div class="lanes"><span>DXB → DAR</span><span>DXB → MWZ</span><span>DAR → DXB</span><span>${esc(t('sea'))} · ${esc(t('air'))}</span></div>
-    </section>
-    <section class="auth-form">
-      <div class="auth-box">
-        <div class="row" style="justify-content:space-between;margin-bottom:8px">
-          <div class="brand"><span class="logo-tile" style="width:46px;height:46px"><img src="img/mark-white.png" alt="" style="width:36px;height:auto;border-radius:0"></span><div><b>HORSE CARGO</b><span>Operating system</span></div></div>
-          ${langToggle()}
-        </div>
-        <h1 style="margin-bottom:18px">${esc(mode === 'login' ? t('sign_in') : t('request_access'))}</h1>
+  <div class="login">
+    ${loginScene()}
+    <div class="login-lang">${langToggle()}</div>
+    <main class="login-center">
+      <div class="login-logo"><img src="img/logo-white.png" alt="Horse Cargo"></div>
+      <p class="login-tagline">${esc(t('auth_tagline'))}</p>
+      <div class="login-card">
+        <h1>${esc(mode === 'login' ? t('sign_in') : t('request_access'))}</h1>
         <form id="auth-form" class="stack" style="gap:12px" novalidate>
           ${mode === 'signup' ? `<div class="field"><label class="req">${esc(t('full_name'))}</label><input class="input" name="full_name" required autocomplete="name"></div>` : ''}
           <div class="field"><label class="req">${esc(t('email'))}</label><input class="input" name="email" type="email" required autocomplete="email" inputmode="email"></div>
           <div class="field"><label class="req">${esc(t('password'))}</label><input class="input" name="password" type="password" required minlength="8" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}"></div>
-          <button class="btn primary" style="width:100%;min-height:44px" type="submit">${esc(mode === 'login' ? t('sign_in') : t('request_access'))}</button>
+          <button class="btn primary" style="width:100%;min-height:46px" type="submit">${esc(mode === 'login' ? t('sign_in') : t('request_access'))}</button>
           <div id="auth-msg"></div>
           <a href="#" id="auth-switch" class="small" style="text-align:center">${esc(mode === 'login' ? t('no_account') : t('have_account'))}</a>
         </form>
       </div>
-    </section>
+      <div class="login-lanes"><span>DXB → DAR</span><span>DXB → MWZ</span><span>DAR → DXB</span><span>${esc(t('sea'))} · ${esc(t('air'))}</span></div>
+    </main>
   </div>`;
   $('#auth-switch').onclick = (e) => { e.preventDefault(); renderLogin(mode === 'login' ? 'signup' : 'login'); };
   $('#auth-form').onsubmit = async (e) => {
