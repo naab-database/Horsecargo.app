@@ -1,0 +1,14 @@
+node_modules/
+test/node_modules/
+test/shots/
+test/server.log
+android/app/build/
+android/build/
+android/.gradle/
+android/app/src/main/assets/public/
+android/local.properties
+*.jks
+*.keystore
+dist/
+.DS_Store
+test/shots-acc/

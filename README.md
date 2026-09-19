@@ -25,7 +25,9 @@ horse-cargo-app/
 ├── supabase/
 │   ├── schema.sql           ← Tables, views, RLS, business rules (RPC)
 │   ├── seed.sql             ← Matawi DXB/DAR/MWZ, settings, aina za mizigo + viwango (placeholder)
-│   └── storage.sql          ← (hiari) bucket ya picha za GRN
+│   ├── storage.sql          ← (hiari) bucket ya picha za GRN
+│   ├── accounting-1-roles.sql ← Uhasibu hatua 1: roles mpya (accountant, finance_manager)
+│   └── accounting-2.sql     ← Uhasibu hatua 2: kampuni 2, CoA, leja, bili, matumizi, ripoti
 ├── android/                 ← Capacitor Android project (tayari imetengenezwa)
 ├── .github/workflows/build-apk.yml   ← GitHub inajenga APK yenyewe
 ├── capacitor.config.json · package.json · netlify.toml
@@ -80,6 +82,8 @@ Namba: `HC-C-#####` · `HC-BK-YYMM-####` · `HC-GRN-DXB-YYMM-####` · `HC-INV-YY
 1. Fungua project mpya kwenye [supabase.com](https://supabase.com) (region: *Frankfurt* au karibu na UAE/TZ).
 2. **SQL Editor** → bandika `supabase/schema.sql` yote → **Run**.
 3. Kisha `supabase/seed.sql` → **Run**. (Hiari: `supabase/storage.sql` kwa picha za GRN.)
+3b. **Uhasibu:** endesha `supabase/accounting-1-roles.sql` → **Run** peke yake. KISHA (query mpya) `supabase/accounting-2.sql` → **Run**.
+    Lazima ziwe run mbili tofauti (Postgres haiwezi kutumia role mpya ndani ya run ile ile iliyoiongeza). Ni salama kuzi-run tena. Mwisho wake unaingiza kwenye leja miamala yote ya zamani (backfill).
 4. **Authentication → Providers → Email**: iwe ON. Kama hutaki barua ya kuthibitisha email, zima *Confirm email*.
 5. **Project Settings → API**: nakili *Project URL* na *anon public key*.
 
@@ -133,7 +137,32 @@ Kujenga kwenye PC yako (ukiwa na Android Studio / SDK): `npm install && npm run 
 
 - **Kuprint** kunafanya kazi kwenye web (browser). Kwenye APK, tumia *Tuma WhatsApp* au fungua web kuprint.
 - **CSV** kwenye APK inatumia share sheet ya simu; kwenye web inapakuliwa.
-- Hakuna bado: portal ya mteja, SMS/WhatsApp za kiotomatiki, malipo mtandaoni (Selcom), gharama za storage za kiotomatiki, ledger kamili ya uhasibu / P&L kwa kila kontena, HR. Muundo wa database uko tayari kuongeza hivi.
+- Hakuna bado: portal ya mteja, SMS/WhatsApp za kiotomatiki, malipo mtandaoni (Selcom), gharama za storage za kiotomatiki, HR (uhasibu A1 umeongezwa — tazama §6A). Muundo wa database uko tayari kuongeza hivi.
+
+## 6A. Module ya Uhasibu (A1)
+
+**Muundo:** kampuni 2 — **AE** (Horse Cargo UAE, tawi DXB) na **TZ** (Horse Cargo Company Ltd, DAR + MWZ). Vitabu kwa **USD**; kila mstari unahifadhi sarafu halisi (AED/TZS) na FX.
+
+**Maingizo ya moja kwa moja kutoka shipping (hakuna kuingiza mara mbili):**
+
+| Tukio | Ingizo |
+|---|---|
+| Amana / malipo kabla ya ankara | Dr Fedha/Benki · Cr Amana za wateja (2200) |
+| GRN → ankara (freight) | Dr Wadaiwa (1300) · Cr Mapato sea/air (4100/4200); amana zinahamishwa kupunguza deni |
+| Tozo za ziada / ushuru | Cr 4300 / Cr Ushuru wa wateja 2300 (si mapato) |
+| Punguzo | Dr Punguzo la mauzo (4900) |
+| Kufuta risiti / ankara | Ingizo la kugeuza (reversal) — hakuna kufuta |
+| Pesa imepokelewa na kampuni nyingine | Intercompany 1350/2150 moja kwa moja |
+| Bili ya msambazaji | Dr Gharama (5xxx/6xxx, imeunganishwa na kontena) · Cr Wadai (2100) |
+| Malipo ya bili / matumizi | Dr Wadai au Gharama · Cr Fedha/Benki |
+
+**Kurasa:** Muhtasari wa fedha · Bili za wasambazaji · Matumizi · Majarida (maker–checker) · Ripoti (Faida & hasara, Mizania, Urari, Faida kwa kontena) · Orodha ya akaunti + leja ya kila akaunti · Fedha na benki · Wasambazaji. Ukurasa wa kontena unaonyesha **Gharama na faida** (gharama za kontena zinagawanywa kwa CBM kwa sea, kg kwa air). Cashier anachagua *Imewekwa kwenye* (akaunti ya fedha) wakati wa kupokea malipo.
+
+**Roles:** `accountant` (bili, matumizi, majarida rasimu) · `finance_manager` (anaidhinisha majarida — si yake mwenyewe, anafuta bili/matumizi, anaongeza akaunti) · `manager` anaona tu. Weka roles kwenye *Watumiaji*.
+
+**Kabla ya kuanza:** (1) Weka akaunti halisi za benki/M-Pesa kwenye *Fedha na benki*. (2) Ingiza salio la mwanzo kwa jarida la mkono (Dr Benki · Cr 3900 Opening balance) na liidhinishwe. (3) Hakikisha FX kwenye *Settings*.
+
+**Bado (A2):** VAT/EFD returns, depreciation ya kiotomatiki, kufunga mwaka, bank reconciliation, payroll.
 
 ## 7. Majaribio yaliyofanyika
 
@@ -147,5 +176,7 @@ Kujaribu local: `test/README-test.md`.
 ## 🇬🇧 English summary
 
 Horse Cargo OS is a vanilla HTML/CSS/JS progressive web app backed by Supabase (Postgres + Auth + RLS), packaged for Android with Capacitor. All business rules live in the database as `SECURITY DEFINER` RPCs guarded by role checks and trigger guards, so the web app, the APK and any direct API call are held to the same rules: deposit gate before warehouse receipt, settlement gate before release, price lock at GRN, duty as a receivable, three-way segregation of duties, append-only money records with voiding and a full audit log.
+
+**Accounting (A1):** two legal entities (AE, TZ) with automatic intercompany, USD double-entry ledger fed automatically by receipts, invoices and voids; supplier bills and expenses linked to containers; maker–checker manual journals; P&L, balance sheet (with intercompany elimination), trial balance and profit per container. Install by running `accounting-1-roles.sql` and then `accounting-2.sql` as two separate runs.
 
 **Setup:** run `supabase/schema.sql` then `seed.sql` in the Supabase SQL editor → put the project URL and anon key in `www/config.js` → deploy `www/` to Netlify/Vercel/Hostinger → the first person to sign up becomes admin → push to GitHub and download the APK from the *Build Android APK* workflow artifacts. Set real rates, deposit percentages and FX in the app before go-live.
