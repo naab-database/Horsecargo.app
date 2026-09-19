@@ -214,6 +214,7 @@ function paymentModal(b, depositDue, bal, done) {
         <div class="field"><label class="req">${esc(t('method'))}</label><select class="input" name="method">
           ${['cash', 'bank', 'mobile_money', 'card'].map((m) => `<option value="${m}">${esc(t('m_' + m))}</option>`).join('')}</select></div>
         <div class="field"><label>${esc(t('txn_ref'))}</label><input class="input" name="reference"></div>
+        ${state.companies.length ? `<div class="field full"><label>${esc(t('acc_paid_into'))}</label><select class="input" name="account"><option value="">${esc(t('acc_auto_account'))}</option></select></div>` : ''}
       </form>`,
     foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn accent" id="pay-save">${icon('check')}${esc(t('save'))}</button>`,
     onMount: (m) => {
@@ -228,14 +229,26 @@ function paymentModal(b, depositDue, bal, done) {
         const v = Number(f.amount.value || 0) / Number(f.fx_rate.value || 1);
         m.el.querySelector('#usd-eq').value = usd(v);
       };
-      f.currency.onchange = () => upd(true);
+      let moneyList = [];
+      const fillAcc = () => {
+        if (!f.account) return;
+        const want = { cash: 'cash', bank: 'bank', mobile_money: 'mobile_money', card: 'bank' }[f.method.value];
+        const list = moneyList.filter((x) => x.currency === f.currency.value);
+        list.sort((a, b) => (b.kind === want) - (a.kind === want) || (b.branch_code === state.profile?.branch_code) - (a.branch_code === state.profile?.branch_code));
+        const keep = f.account.value;
+        f.account.innerHTML = `<option value="">${esc(t('acc_auto_account'))}</option>` + list.map((x) => `<option value="${x.id}">${esc(x.company_code)} · ${esc(x.name)}</option>`).join('');
+        if ([...f.account.options].some((o) => o.value === keep)) f.account.value = keep;
+      };
+      if (f.account) from('money_accounts').select('id,name,kind,currency,company_code,branch_code').eq('active', true).order('name').then(({ data }) => { moneyList = data || []; fillAcc(); });
+      f.method.addEventListener('change', fillAcc);
+      f.currency.onchange = () => { upd(true); fillAcc(); };
       f.amount.oninput = () => upd(false); f.fx_rate.oninput = () => upd(false);
       upd(false);
       m.el.querySelector('#pay-save').onclick = (e) => busy(e.currentTarget, async () => {
         if (!checkRequired(f)) return;
         const d = formData(f);
         try {
-          const r = await rpc('record_payment', { p_booking: b.id, p_amount: d.amount, p_currency: d.currency, p_method: d.method, p_reference: d.reference, p_fx_rate: d.fx_rate });
+          const r = await rpc('record_payment', { p_booking: b.id, p_amount: d.amount, p_currency: d.currency, p_method: d.method, p_reference: d.reference, p_fx_rate: d.fx_rate, ...(d.account ? { p_account: d.account } : {}) });
           m.close();
           toast(`${t('payment_saved')} · ${r.ref}`);
           done();

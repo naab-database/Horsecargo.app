@@ -2,7 +2,7 @@ import { t } from '../i18n.js';
 import { from, run, isAdmin, state, errText } from '../api.js';
 import { icon, esc, fdate, modal, toast, formData, busy } from '../ui.js';
 
-const ROLES = ['admin', 'manager', 'counter', 'warehouse', 'cashier', 'operations', 'release_officer', 'viewer'];
+const ROLES = ['admin', 'manager', 'counter', 'warehouse', 'cashier', 'operations', 'release_officer', 'accountant', 'finance_manager', 'viewer'];
 
 export async function render({ el, setTitle, rerender }) {
   setTitle(t('users'));

@@ -3,6 +3,8 @@ import { from, run, rpc, can, errText } from '../api.js';
 import { icon, esc, usd, num, fdate, fdatetime, shipBadge, statusBadge, modeTag, route, toast, confirmDialog, busy, empty, $, $$ } from '../ui.js';
 import { openShipmentModal } from './shipments.js';
 import { scanModal, refFromText } from '../scanner.js';
+import { state } from '../api.js';
+import { pnlBody } from './acc-reports.js';
 
 export async function render({ el, params, setTitle, rerender }) {
   const s = await run(from('v_shipments').select('*').eq('id', params[0]).single());
@@ -26,6 +28,7 @@ export async function render({ el, params, setTitle, rerender }) {
     if (s.status === 'arrived') acts.push(`<button class="btn" data-act="complete">${icon('check')}${esc(t('mark_completed'))}</button>`);
   }
 
+  const showPnl = can('acc.read') && state.companies.length > 0;
   el.innerHTML = `
   <div class="page-head">
     <div class="grow">
@@ -79,7 +82,12 @@ export async function render({ el, params, setTitle, rerender }) {
         </dl></div>
       </div>
     </div>
+      ${showPnl ? `<div class="card" id="pnl-card"><div class="card-h"><h2>${esc(t('acc_costs_profit'))}</h2>
+          ${can('acc.write') ? `<div class="row" style="gap:6px"><a class="btn sm" href="#/acc/expenses?new=1&shipment=${s.id}">${icon('plus')}${esc(t('acc_new_expense'))}</a><a class="btn sm primary" href="#/acc/bills/new?shipment=${s.id}">${icon('plus')}${esc(t('acc_add_cost'))}</a></div>` : ''}</div>
+        <div class="card-b" id="pnl"><div class="spinner"></div></div></div>` : ''}
   </div>`;
+  if (showPnl) rpc('acc_shipment_pnl', { p_shipment: s.id }).then((p) => { const b = $('#pnl', el); if (b) b.innerHTML = pnlBody(p); })
+    .catch((err) => { const b = $('#pnl', el); if (b) b.innerHTML = `<p class="muted small">${esc(errText(err))}</p>`; });
 
   const sumSel = () => {
     const picks = $$('.pick:checked', el);
