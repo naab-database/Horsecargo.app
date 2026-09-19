@@ -1,14 +1,16 @@
 // Horse Cargo service worker — caches the app shell so it opens instantly and offline.
 // Data always comes live from Supabase (never cached).
-const CACHE = 'hc-shell-v2';
+const CACHE = 'hc-shell-v3';
 const SHELL = [
   './', 'index.html', 'track.html', 'config.js', 'manifest.webmanifest', 'css/app.css',
   'vendor/supabase.js', 'vendor/qrcode.js', 'vendor/html5-qrcode.min.js',
-  'js/app.js', 'js/api.js', 'js/ui.js', 'js/i18n.js', 'js/scanner.js',
+  'js/app.js', 'js/api.js', 'js/ui.js', 'js/i18n.js', 'js/scanner.js', 'js/acc.js',
   'js/pages/dashboard.js', 'js/pages/bookings.js', 'js/pages/booking.js', 'js/pages/booking-new.js', 'js/pages/grn.js',
   'js/pages/customers.js', 'js/pages/customer.js', 'js/pages/shipments.js', 'js/pages/shipment.js', 'js/pages/scan.js',
   'js/pages/rates.js', 'js/pages/reports.js', 'js/pages/users.js', 'js/pages/settings.js', 'js/pages/profile.js',
   'js/pages/audit.js', 'js/pages/more.js', 'js/pages/doc.js',
+  'js/pages/acc.js', 'js/pages/acc-bills.js', 'js/pages/acc-bill.js', 'js/pages/acc-bill-new.js', 'js/pages/acc-expenses.js', 'js/pages/acc-journals.js',
+  'js/pages/acc-coa.js', 'js/pages/acc-account.js', 'js/pages/acc-money.js', 'js/pages/acc-suppliers.js', 'js/pages/acc-reports.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon-96.png',
   'img/logo-white.png', 'img/mark-white.png', 'img/logo.jpg',
 ];
