@@ -6,7 +6,7 @@ export const sb = configured
   ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'hc.auth' } })
   : null;
 
-export const state = { user: null, profile: null, settings: null, branches: [], categories: [] };
+export const state = { user: null, profile: null, settings: null, branches: [], categories: [], companies: [] };
 
 // ───────── error translation (server refusals → readable text) ─────────
 const SW = {
@@ -55,12 +55,13 @@ export async function loadSession() {
 }
 export async function loadReference(force = false) {
   if (state.settings && !force) return;
-  const [s, b, c] = await Promise.all([
+  const [s, b, c, co] = await Promise.all([
     run(sb.from('settings').select('*').eq('id', 1).maybeSingle()),
     run(sb.from('branches').select('*').order('code')),
     run(sb.from('cargo_categories').select('*').order('name')),
+    sb.from('companies').select('*').order('code').then((r) => r.data || []),  // empty if accounting not installed
   ]);
-  state.settings = s; state.branches = b || []; state.categories = c || [];
+  state.settings = s; state.branches = b || []; state.categories = c || []; state.companies = co;
 }
 export const branchName = (code) => state.branches.find((b) => b.code === code)?.name || code || '—';
 export const catName = (row) => (getLang() === 'sw' && row.category_name_sw) ? row.category_name_sw : row.category_name;
@@ -88,6 +89,9 @@ const PERMS = {
   'audit.read': ['manager'],
   'reports.read': ['manager', 'cashier', 'operations'],
   'users.manage': [],
+  'acc.read': ['accountant', 'finance_manager', 'manager'],
+  'acc.write': ['accountant', 'finance_manager'],
+  'acc.approve': ['finance_manager'],
 };
 export function can(action) {
   const r = state.profile?.role;

@@ -49,8 +49,9 @@ export function esc(v) {
 const loc = () => (getLang() === 'sw' ? 'sw-TZ' : 'en-GB');
 export function usd(n, opts = {}) {
   const v = Number(n || 0);
-  const s = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return opts.bare ? s : `$${s}`;
+  const s = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sign = v < 0 && Math.abs(v) >= 0.005 ? '-' : '';
+  return opts.bare ? sign + s : `${sign}$${s}`;
 }
 export function money(n, cur = 'USD') {
   const v = Number(n || 0);
