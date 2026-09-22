@@ -1,133 +1,368 @@
-import { t } from '../i18n.js';
-import { from, run, rpc, can, errText } from '../api.js';
-import { icon, esc, usd, num, fdate, fdatetime, shipBadge, statusBadge, modeTag, route, toast, confirmDialog, busy, empty, $, $$ } from '../ui.js';
-import { openShipmentModal } from './shipments.js';
-import { scanModal, refFromText } from '../scanner.js';
-import { state } from '../api.js';
-import { pnlBody } from './acc-reports.js';
+import { t, tr } from '../i18n.js';
+import { from, run, rpc, can, isAdmin, state, errText, catName, publicTrackUrl, fxFor, branchName } from '../api.js';
+import {
+  icon, esc, usd, money, num, fdate, fdatetime, ago, statusBadge, modeTag, route, modal, toast, confirmDialog,
+  formData, checkRequired, busy, empty, qrSVG, whatsappLink, $, $$,
+} from '../ui.js';
+import { FLOW, payBadge } from './shipments.js';
 
 export async function render({ el, params, setTitle, rerender }) {
-  const s = await run(from('v_shipments').select('*').eq('id', params[0]).single());
-  const [loaded, eligible] = await Promise.all([
-    run(from('v_bookings').select('*').eq('shipment_id', s.id).order('ref')),
-    s.status === 'open'
-      ? run(from('v_bookings').select('*').eq('status', 'received').eq('mode', s.mode).eq('origin_branch', s.origin_branch).eq('destination_branch', s.destination_branch).order('created_at'))
-      : [],
+  const id = params[0];
+  const [s, items, lines, receipts, events, rel, grn] = await Promise.all([
+    run(from('v_shipments').select('*').eq('id', id).single()),
+    run(from('v_shipment_items').select('*').eq('shipment_id', id).order('id')),
+    run(from('v_invoice_lines').select('*').eq('shipment_id', id).eq('invoice_status', 'issued').order('id')),
+    run(from('v_receipts').select('*').eq('shipment_id', id).order('received_at', { ascending: false })),
+    run(from('v_events').select('*').eq('shipment_id', id).order('created_at', { ascending: false })),
+    run(from('v_releases').select('*').eq('shipment_id', id).maybeSingle()),
+    run(from('grns').select('*').eq('shipment_id', id).maybeSingle()),
   ]);
-  setTitle(s.container_no || s.ref);
-  const util = s.capacity_cbm ? Math.round(s.total_cbm / s.capacity_cbm * 100) : null;
-  const canLoad = s.status === 'open' && can('shipment.load');
+  setTitle(s.ref);
+  const grnLines = grn ? await run(from('grn_lines').select('*').eq('grn_id', grn.id).order('id')) : [];
+  const closed = ['delivered', 'cancelled'].includes(s.status);
+  const idx = FLOW.indexOf(s.status);
+  const bal = Number(s.balance_usd);
+  const fx = Number(s.invoice_fx || 1);
+  const cur = s.invoice_currency || 'USD';
 
-  const acts = [];
-  if (can('shipment.write')) acts.push(`<button class="btn" data-act="edit">${icon('gear')}${esc(t('edit'))}</button>`);
-  acts.push(`<a class="btn" href="#/doc/manifest/${s.id}">${icon('print')}${esc(t('manifest'))}</a>`);
-  if (canLoad) acts.push(`<button class="btn" data-act="scanload">${icon('scan')}${esc(t('scan_to_load'))}</button>`);
-  if (can('shipment.status')) {
-    if (s.status === 'open') acts.push(`<button class="btn primary" data-act="depart" ${loaded.length ? '' : 'disabled'}>${icon(s.mode === 'air' ? 'plane' : 'ship')}${esc(t('mark_departed'))}</button>`);
-    if (s.status === 'departed') acts.push(`<button class="btn primary" data-act="arrive">${icon('check')}${esc(t('mark_arrived'))}</button>`);
-    if (s.status === 'arrived') acts.push(`<button class="btn" data-act="complete">${icon('check')}${esc(t('mark_completed'))}</button>`);
-  }
+  const A = [];
+  if (!closed && can('shipment.status') && idx >= 0 && idx < FLOW.length - 2) A.push(`<button class="btn primary" data-act="status">${icon('truck')}${esc(t('update_status'))}</button>`);
+  if (!closed && can('payment.record') && bal > 0.009) A.push(`<button class="btn accent" data-act="pay">${icon('money')}${esc(t('record_payment'))}</button>`);
+  if (!closed && !grn && can('grn.record')) A.push(`<a class="btn" href="#/shipment/${s.id}/grn">${icon('scale')}${esc(t('record_grn'))}</a>`);
+  if (!closed && s.status === 'arrived' && can('deliver')) A.push(`<button class="btn accent" data-act="deliver">${icon('release')}${esc(t('deliver_cargo'))}</button>`);
+  if (!closed && can('shipment.edit')) A.push(`<a class="btn" href="#/shipment/${s.id}/edit">${icon('gear')}${esc(t('edit_shipment'))}</a>`);
 
-  const showPnl = can('acc.read') && state.companies.length > 0;
   el.innerHTML = `
   <div class="page-head">
     <div class="grow">
-      <div class="row" style="gap:8px">${modeTag(s.mode)} ${route(s.origin_branch, s.destination_branch)} ${shipBadge(s.status)}</div>
-      <h1 class="mono" style="margin-top:4px">${esc(s.container_no || s.ref)}</h1>
-      <p class="mono">${esc(s.ref)}${s.container_type ? ' · ' + esc(s.container_type) : ''}</p>
+      <div class="row" style="gap:8px">${modeTag(s.mode)} ${route(s.origin_branch, s.destination_branch)} ${statusBadge(s.status)} ${payBadge(s.payment_status)}</div>
+      <h1 class="mono" style="margin-top:4px">${esc(s.ref)}</h1>
+      <p>${esc(s.customer_name)} → ${esc(s.receiver_name)} · ${fdate(s.created_at)}</p>
     </div>
-    <div class="row">${acts.join('')}</div>
+    <div class="row">${A.join('')}
+      <button class="btn" data-act="more">${icon('more')}</button></div>
   </div>
+  ${s.status === 'cancelled' ? `<div class="callout danger" style="margin-bottom:14px">${icon('x')}<div>${esc(t('st_cancelled'))}: ${esc(s.cancelled_reason || '')}</div></div>` : ''}
   <div class="stack">
     <div class="grid c4">
-      <div class="card kpi"><div class="k">${esc(t('bookings'))}</div><div class="v">${s.booking_count}</div><div class="s">${num(s.total_pieces, 0)} ${esc(t('pieces').toLowerCase())}</div></div>
-      <div class="card kpi"><div class="k">CBM</div><div class="v">${num(s.total_cbm, 3)}</div><div class="s">${s.capacity_cbm ? `/ ${num(s.capacity_cbm, 1)}` : ''}</div></div>
-      <div class="card kpi"><div class="k">${esc(t('weight_kg'))}</div><div class="v">${num(s.total_kg, 0)}</div><div class="s">kg</div></div>
-      <div class="card kpi"><div class="k">${esc(t('utilisation'))}</div><div class="v">${util !== null ? util + '%' : '—'}</div>
-        ${util !== null ? `<div class="progress ${util > 100 ? 'over' : ''}" style="margin-top:6px"><div style="width:${Math.min(util, 100)}%"></div></div>` : ''}</div>
+      <div class="card kpi"><div class="k">${esc(t('chargeable'))}</div><div class="v">${s.mode === 'sea' ? num(s.cbm, 3) : num(s.weight_kg || s.actual_kg, 1)}</div><div class="s">${s.mode === 'sea' ? 'CBM' : 'kg'} · USD ${num(s.rate_used, 2)}${s.rate_source === 'override' ? ` · ${esc(t('rate_overridden'))}` : ''}</div></div>
+      <div class="card kpi"><div class="k">${esc(t('invoice_total'))}</div><div class="v">${usd(s.invoice_total)}</div>${cur !== 'USD' ? `<div class="s">${money(s.invoice_total * fx, cur)}</div>` : ''}</div>
+      <div class="card kpi"><div class="k">${esc(t('paid'))}</div><div class="v ok">${usd(s.paid_usd)}</div></div>
+      <div class="card kpi"><div class="k">${esc(t('balance'))}</div><div class="v ${bal > 0.009 ? 'due' : 'ok'}">${usd(bal)}</div>${cur !== 'USD' ? `<div class="s">${money(bal * fx, cur)}</div>` : ''}</div>
     </div>
+
+    ${s.status !== 'cancelled' ? `<div class="card"><div class="card-b">
+      <div class="steps">${FLOW.map((st, i) => `<div class="stp ${i < idx ? 'done' : ''} ${i === idx ? 'on' : ''}"><span></span><b>${esc(t('st_' + st))}</b></div>`).join('')}</div>
+    </div></div>` : ''}
 
     <div class="split">
       <div class="stack">
-        <div class="card">
-          <div class="card-h"><h2>${esc(t('loaded_bookings'))}</h2></div>
-          ${loaded.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('booking_ref'))}</th><th>${esc(t('customer'))}</th><th class="num">${esc(t('pieces'))}</th><th class="num">CBM</th><th class="num">${esc(t('balance'))}</th><th>${esc(t('status'))}</th><th></th></tr></thead>
-            <tbody>${loaded.map((b) => `<tr><td><a class="mono" href="#/booking/${b.id}"><b>${esc(b.ref)}</b></a></td><td>${esc(b.customer_name)}<div class="muted small">→ ${esc(b.consignee_name)}</div></td>
-              <td class="num">${num(b.pieces, 0)}</td><td class="num">${num(b.cbm, 3)}</td><td class="num" style="${b.balance_usd > 0 ? 'color:var(--red);font-weight:700' : ''}">${usd(b.balance_usd)}</td><td>${statusBadge(b.status)}</td>
-              <td class="right">${canLoad ? `<button class="btn sm danger" data-act="unload" data-id="${b.id}">${esc(t('unload'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty(t('nothing_here'), 'box')}
+        <div class="card"><div class="card-h"><h2>${esc(t('cargo'))}</h2><span class="muted">${items.length} ${esc(t('items'))}</span></div>
+          <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('description'))}</th><th>${esc(t('cargo_category'))}</th><th class="num">${esc(t('qty'))}</th></tr></thead>
+          <tbody>${items.map((i) => `<tr><td>${esc(i.description)}</td><td>${esc(catName({ category_name: i.category_name, category_name_sw: i.category_name_sw }) || '—')}</td>
+            <td class="num nowrap">${num(i.qty, 2)} ${esc(i.unit)}</td></tr>`).join('')}</tbody></table></div></div>
+
+        <div class="card"><div class="card-h"><h2>${esc(t('charges_pricing'))}</h2>
+          ${!closed && can('charge.add') ? `<button class="btn sm" data-act="charge">${icon('plus')}${esc(t('add_charge'))}</button>` : ''}</div>
+          <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('description'))}</th><th class="num">${esc(t('qty'))}</th><th class="num">${esc(t('unit_price'))}</th><th class="num">${esc(t('amount'))}</th><th></th></tr></thead>
+          <tbody>${lines.map((l) => `<tr><td>${esc(l.description)}<div class="muted small">${esc(t('ch_' + (l.charge_type || l.kind)))} · ${esc(l.created_by_name || '')}</div></td>
+            <td class="num">${num(l.qty, 2)}</td><td class="num">${usd(l.unit_price, { bare: true })}</td>
+            <td class="num ${Number(l.amount) < 0 ? 'ok' : ''}">${usd(l.amount, { bare: true })}</td>
+            <td class="right">${l.kind !== 'freight' && can('charge.remove') && !closed ? `<button class="icon-btn" data-act="rmline" data-id="${l.id}">${icon('trash')}</button>` : ''}</td></tr>`).join('')}
+            <tr style="font-weight:800"><td colspan="3">${esc(t('grand_total'))}</td><td class="num">${usd(s.invoice_total, { bare: true })}</td><td></td></tr>
+          </tbody></table></div>
+          <div class="card-b row" style="gap:10px;flex-wrap:wrap">
+            <span class="muted small">${esc(t('invoice'))}: <b class="mono">${esc(s.invoice_ref || '—')}</b></span>
+            <span class="muted small">${esc(t('currency'))}: <b>${esc(cur)}</b>${cur !== 'USD' ? ` @ ${num(fx, 4)}` : ''}</span>
+            ${can('currency.set') && !closed ? `<button class="btn sm" data-act="cur">${icon('money')}${esc(t('change_currency'))}</button>` : ''}
+          </div>
         </div>
-        ${s.status === 'open' ? `
-        <div class="card">
-          <div class="card-h"><h2>${esc(t('eligible_cargo'))}</h2><span class="muted">${eligible.length}</span>
-            ${canLoad && eligible.length ? `<button class="btn sm primary" data-act="loadsel">${icon('check')}${esc(t('load_selected'))}</button>` : ''}</div>
-          ${eligible.length ? `<div class="table-wrap"><table class="t"><thead><tr><th style="width:36px">${canLoad ? '<input type="checkbox" id="all">' : ''}</th><th>${esc(t('booking_ref'))}</th><th>${esc(t('customer'))}</th><th class="num">${esc(t('pieces'))}</th><th class="num">CBM</th><th class="num">kg</th></tr></thead>
-            <tbody>${eligible.map((b) => `<tr><td>${canLoad ? `<input type="checkbox" class="pick" value="${b.id}" data-cbm="${b.cbm}">` : ''}</td><td><a class="mono" href="#/booking/${b.id}">${esc(b.ref)}</a></td>
-              <td>${esc(b.customer_name)}</td><td class="num">${num(b.pieces, 0)}</td><td class="num">${num(b.cbm, 3)}</td><td class="num">${num(b.actual_kg, 1)}</td></tr>`).join('')}</tbody></table></div>
-            <div class="card-b muted small" id="sel-sum"></div>` : empty(t('nothing_here'), 'box')}
-        </div>` : ''}
+
+        <div class="card"><div class="card-h"><h2>${esc(t('payments'))}</h2>
+          ${!closed && can('payment.record') ? `<button class="btn sm" data-act="pay">${icon('plus')}${esc(t('record_payment'))}</button>` : ''}</div>
+          ${receipts.length ? `<div class="table-wrap"><table class="t"><tbody>${receipts.map((r) => `<tr style="${r.void ? 'opacity:.5;text-decoration:line-through' : ''}">
+            <td><b class="mono">${esc(r.ref)}</b><div class="muted small">${fdatetime(r.received_at)} · ${esc(t('m_' + r.method))} · ${esc(r.received_by_name || '')}</div></td>
+            <td class="num nowrap">${money(r.amount, r.currency)}</td><td class="num">${usd(r.amount_usd)}</td>
+            <td class="right nowrap"><a class="icon-btn" href="#/doc/receipt/${r.id}" title="${esc(t('print'))}">${icon('print')}</a>
+              ${!r.void && can('payment.void') ? `<button class="icon-btn" data-act="void" data-id="${r.id}">${icon('trash')}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+            : empty(t('no_payments'), 'money')}
+        </div>
+
+        ${grn ? `<div class="card"><div class="card-h"><h2>${esc(t('grn'))}</h2><a class="btn sm" href="#/doc/grn/${grn.id}">${icon('print')}${esc(t('print'))}</a></div>
+          <div class="card-b"><div class="money">
+            <div><div class="k">${esc(t('pieces'))}</div><div class="v">${num(grn.pieces, 0)}</div></div>
+            <div><div class="k">CBM</div><div class="v">${num(grn.total_cbm, 3)}</div></div>
+            <div><div class="k">${esc(t('weight_kg'))}</div><div class="v">${num(grn.total_kg, 1)}</div></div>
+            <div><div class="k">${esc(t('chargeable_kg'))}</div><div class="v">${num(grn.chargeable_kg, 1)}</div></div>
+          </div>
+          <p class="muted small" style="margin:10px 0 0">${esc(t('condition'))}: ${esc(t('c_' + grn.condition))}${grn.condition_notes ? ' · ' + esc(grn.condition_notes) : ''} · ${fdatetime(grn.received_at)}</p>
+          ${grnLines.length ? `<div class="table-wrap" style="margin-top:10px"><table class="t"><tbody>${grnLines.map((l) => `<tr>
+            <td>${num(l.pieces, 0)} × ${num(l.length_cm, 0)}×${num(l.width_cm, 0)}×${num(l.height_cm, 0)} cm</td>
+            <td class="num">${num(l.cbm, 4)} CBM</td><td class="num">${num(l.weight_kg, 1)} kg</td></tr>`).join('')}</tbody></table></div>` : ''}
+          </div></div>` : ''}
+
+        ${can('acc.read') && state.companies.length ? `<div class="card" id="pnl-card"><div class="card-h"><h2>${esc(t('acc_costs_profit'))}</h2>
+          ${can('acc.write') ? `<div class="row" style="gap:6px"><a class="btn sm" href="#/acc/expenses?new=1&shipment=${s.id}">${icon('plus')}${esc(t('acc_new_expense'))}</a>
+          <a class="btn sm primary" href="#/acc/bills/new?shipment=${s.id}">${icon('plus')}${esc(t('acc_add_cost'))}</a></div>` : ''}</div>
+          <div class="card-b" id="pnl"><div class="spinner"></div></div></div>` : ''}
       </div>
-      <div class="card">
-        <div class="card-h"><h2>${esc(t('details'))}</h2></div>
-        <div class="card-b"><dl class="kv">
-          <dt>${esc(t('container_no'))}</dt><dd class="mono">${esc(s.container_no || '—')}</dd>
-          <dt>${esc(t('seal_no'))}</dt><dd class="mono">${esc(s.seal_no || '—')}</dd>
-          <dt>${esc(t('carrier'))}</dt><dd>${esc(s.carrier || '—')}</dd>
-          <dt>${esc(t('vessel_or_flight'))}</dt><dd>${esc(s.vessel_or_flight || '—')}</dd>
-          <dt>${esc(t('bl_awb_no'))}</dt><dd class="mono">${esc(s.bl_awb_no || '—')}</dd>
-          <dt>${esc(t('etd'))}</dt><dd>${fdate(s.etd)}</dd>
-          <dt>${esc(t('eta'))}</dt><dd>${fdate(s.eta)}</dd>
-          <dt>${esc(t('sh_departed'))}</dt><dd>${fdatetime(s.departed_at)}</dd>
-          <dt>${esc(t('sh_arrived'))}</dt><dd>${fdatetime(s.arrived_at)}</dd>
-          ${s.notes ? `<dt>${esc(t('notes'))}</dt><dd>${esc(s.notes)}</dd>` : ''}
-        </dl></div>
+
+      <div class="stack">
+        <div class="card"><div class="card-h"><h2>${esc(t('sender'))} / ${esc(t('receiver'))}</h2></div>
+          <div class="card-b"><dl class="kv">
+            <dt>${esc(t('sender'))}</dt><dd><a href="#/customer/${s.customer_id}">${esc(s.sender_name || s.customer_name)}</a><div class="muted small">${esc(s.sender_phone || s.customer_phone)}${s.sender_address ? '<br>' + esc(s.sender_address) : ''}</div></dd>
+            <dt>${esc(t('receiver'))}</dt><dd>${s.receiver_customer_id ? `<a href="#/customer/${s.receiver_customer_id}">${esc(s.receiver_name)}</a>` : esc(s.receiver_name)}<div class="muted small">${esc(s.receiver_phone)}${s.receiver_address ? '<br>' + esc(s.receiver_address) : ''}${s.receiver_tin ? '<br>TIN ' + esc(s.receiver_tin) : ''}</div></dd>
+            <dt>${esc(t('route'))}</dt><dd>${esc(branchName(s.origin_branch))} → ${esc(branchName(s.destination_branch))}</dd>
+            <dt>${esc(t('created'))}</dt><dd>${fdatetime(s.created_at)}</dd>
+            ${s.delivered_at ? `<dt>${esc(t('st_delivered'))}</dt><dd>${fdatetime(s.delivered_at)}</dd>` : ''}
+            ${s.notes ? `<dt>${esc(t('notes'))}</dt><dd>${esc(s.notes)}</dd>` : ''}
+          </dl></div>
+          <div class="card-b row" style="gap:8px;flex-wrap:wrap;border-top:1px solid var(--line-2)">
+            <a class="btn sm" href="#/doc/invoice/${s.id}">${icon('print')}${esc(t('invoice'))}</a>
+            <a class="btn sm" href="#/doc/label/${s.id}">${icon('tag')}${esc(t('print_labels'))}</a>
+            ${rel ? `<a class="btn sm" href="#/doc/release/${rel.id}">${icon('print')}${esc(t('release_note'))}</a>` : ''}
+            <a class="btn sm" target="_blank" rel="noopener" href="${esc(whatsappLink(s.receiver_phone, trackMsg(s)))}">${icon('whatsapp')}${esc(t('share_whatsapp'))}</a>
+          </div>
+        </div>
+
+        <div class="card"><div class="card-h"><h2>${esc(t('qr_code'))}</h2></div>
+          <div class="card-b" style="text-align:center">${qrSVG(publicTrackUrl(s.ref), 150)}
+            <div class="muted small mono" style="margin-top:6px">${esc(s.ref)}</div></div></div>
+
+        <div class="card"><div class="card-h"><h2>${esc(t('timeline'))}</h2>
+          ${can('tracking.note') && !closed ? `<button class="btn sm" data-act="note">${icon('plus')}${esc(t('add_note'))}</button>` : ''}</div>
+          <div class="card-b"><ol class="tl">${events.map((e) => `<li>
+            <b>${esc(tr(e.title))}</b>${e.is_public ? '' : ` <span class="badge plain">${esc(t('internal'))}</span>`}
+            <div class="muted small">${fdatetime(e.created_at)} · ${ago(e.created_at)}${e.created_by_name ? ' · ' + esc(e.created_by_name) : ''}${e.location ? ' · ' + esc(e.location) : ''}</div>
+            ${e.note ? `<div class="small">${esc(e.note)}</div>` : ''}
+            ${e.prev_status ? `<div class="muted small">${esc(t('st_' + e.prev_status))} → ${esc(t('st_' + e.status))}</div>` : ''}
+          </li>`).join('')}</ol></div></div>
       </div>
     </div>
-      ${showPnl ? `<div class="card" id="pnl-card"><div class="card-h"><h2>${esc(t('acc_costs_profit'))}</h2>
-          ${can('acc.write') ? `<div class="row" style="gap:6px"><a class="btn sm" href="#/acc/expenses?new=1&shipment=${s.id}">${icon('plus')}${esc(t('acc_new_expense'))}</a><a class="btn sm primary" href="#/acc/bills/new?shipment=${s.id}">${icon('plus')}${esc(t('acc_add_cost'))}</a></div>` : ''}</div>
-        <div class="card-b" id="pnl"><div class="spinner"></div></div></div>` : ''}
   </div>`;
-  if (showPnl) rpc('acc_shipment_pnl', { p_shipment: s.id }).then((p) => { const b = $('#pnl', el); if (b) b.innerHTML = pnlBody(p); })
-    .catch((err) => { const b = $('#pnl', el); if (b) b.innerHTML = `<p class="muted small">${esc(errText(err))}</p>`; });
 
-  const sumSel = () => {
-    const picks = $$('.pick:checked', el);
-    const cbm = picks.reduce((a, p) => a + Number(p.dataset.cbm || 0), 0);
-    const box = $('#sel-sum', el);
-    if (box) box.textContent = picks.length ? `${picks.length} · ${cbm.toFixed(3)} CBM → ${(Number(s.total_cbm) + cbm).toFixed(3)}${s.capacity_cbm ? ' / ' + s.capacity_cbm : ''} CBM` : '';
-  };
-  el.addEventListener('change', (e) => {
-    if (e.target.id === 'all') $$('.pick', el).forEach((p) => { p.checked = e.target.checked; });
-    if (e.target.id === 'all' || e.target.classList.contains('pick')) sumSel();
-  });
+  if (can('acc.read') && state.companies.length) {
+    rpc('acc_shipment_pnl', { p_shipment: s.id }).then((p) => {
+      const b = $('#pnl', el); if (!b) return;
+      b.innerHTML = `<div class="money">
+        <div><div class="k">${esc(t('acc_revenue'))}</div><div class="v">${usd(p.revenue)}</div></div>
+        <div><div class="k">${esc(t('acc_cost'))}</div><div class="v">${usd(p.cost)}</div></div>
+        <div><div class="k">${esc(t('acc_profit'))}</div><div class="v ${p.profit < 0 ? 'due' : 'ok'}">${usd(p.profit)}</div></div>
+        <div><div class="k">${esc(t('acc_margin'))}</div><div class="v">${p.margin_pct ?? '—'}%</div></div></div>
+        ${p.cost_lines.length ? `<div class="table-wrap" style="margin-top:10px"><table class="t"><tbody>${p.cost_lines.map((c) => `<tr>
+          <td class="small nowrap">${fdate(c.date)}</td><td><span class="mono small">${esc(c.code)}</span> ${esc(c.account)}<div class="muted small">${esc(c.description || '')} · ${esc(c.journal)}</div></td>
+          <td class="num">${usd(c.amount, { bare: true })}</td></tr>`).join('')}</tbody></table></div>`
+        : `<p class="muted small" style="margin:10px 0 0">${esc(t('acc_no_costs'))}</p>`}`;
+    }).catch((err) => { const b = $('#pnl', el); if (b) b.innerHTML = `<p class="muted small">${esc(errText(err))}</p>`; });
+  }
 
   el.addEventListener('click', async (e) => {
     const a = e.target.closest('[data-act]'); if (!a) return;
     const act = a.dataset.act;
-    try {
-      if (act === 'edit') return openShipmentModal(s, () => rerender());
-      if (act === 'unload') { await rpc('unload_booking', { p_booking: a.dataset.id }); toast(t('saved')); return rerender(); }
-      if (act === 'loadsel') {
-        const ids = $$('.pick:checked', el).map((p) => p.value);
-        if (!ids.length) return;
-        await busy(a, async () => { for (const id of ids) await rpc('load_booking', { p_shipment: s.id, p_booking: id }); });
-        toast(`${t('saved')} · ${ids.length}`); return rerender();
-      }
-      if (act === 'scanload') {
-        let changed = false;
-        const m = scanModal(t('scan_to_load'), async (text) => {
-          const ref = refFromText(text);
-          if (!ref) return { ok: false, msg: `${t('not_found')}: ${text}` };
-          const bk = await run(from('bookings').select('id,ref,status').eq('ref', ref).maybeSingle());
-          if (!bk) return { ok: false, msg: `${t('not_found')}: ${ref}` };
-          try { await rpc('load_booking', { p_shipment: s.id, p_booking: bk.id }); changed = true; return { ok: true, msg: `${ref} ✓` }; } catch (err) { return { ok: false, msg: `${ref}: ${errText(err)}` }; }
+    if (act === 'status') return statusModal(s, rerender);
+    if (act === 'pay') return paymentModal(s, rerender);
+    if (act === 'charge') return chargeModal(s, rerender);
+    if (act === 'cur') return currencyModal(s, rerender);
+    if (act === 'deliver') return deliverModal(s, rerender);
+    if (act === 'note') {
+      return modal({
+        title: t('add_note'),
+        body: `<form class="form" id="nf"><div class="field full"><label class="req">${esc(t('update_title'))}</label><input class="input" name="title" required></div>
+          <div class="field full"><label>${esc(t('notes'))}</label><textarea class="input" name="note" rows="3"></textarea></div>
+          <div class="field full"><label><input type="checkbox" name="pub" checked> ${esc(t('public_update'))}</label></div></form>`,
+        foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn primary" id="ns">${icon('check')}${esc(t('save'))}</button>`,
+        onMount: (m) => { m.el.querySelector('#ns').onclick = (ev) => busy(ev.currentTarget, async () => {
+          const f = m.el.querySelector('#nf'); if (!checkRequired(f)) return;
+          const d = formData(f);
+          try { await rpc('add_tracking_note', { p_shipment: s.id, p_title: d.title, p_note: d.note, p_public: d.pub }); m.close(); toast(t('saved')); rerender(); }
+          catch (err) { toast(errText(err), 'err'); }
+        }); },
+      });
+    }
+    if (act === 'void') {
+      const reason = await confirmDialog(`${t('void')} ${t('receipt').toLowerCase()}?`, { danger: true, withReason: true, okText: t('void') });
+      if (!reason) return;
+      try { await rpc('void_receipt', { p_receipt: a.dataset.id, p_reason: reason }); toast(t('saved')); rerender(); } catch (err) { toast(errText(err), 'err'); }
+    }
+    if (act === 'rmline') {
+      const reason = await confirmDialog(t('remove_charge_q'), { danger: true, withReason: true, okText: t('void') });
+      if (!reason) return;
+      try { await rpc('remove_charge', { p_line: Number(a.dataset.id), p_reason: reason }); toast(t('saved')); rerender(); } catch (err) { toast(errText(err), 'err'); }
+    }
+    if (act === 'more') {
+      const opts = [];
+      if (!closed && can('shipment.cancel')) opts.push(`<button class="lc row danger" data-m="cancel">${icon('x')}${esc(t('cancel_shipment'))}</button>`);
+      opts.push(`<a class="lc row" target="_blank" rel="noopener" href="${esc(publicTrackUrl(s.ref))}">${icon('search')}${esc(t('track_cargo'))}</a>`);
+      if (isAdmin()) opts.push(`<a class="lc row" href="#/audit?q=${encodeURIComponent(s.ref)}">${icon('shield')}${esc(t('audit'))}</a>`);
+      modal({ title: t('more'), body: `<div class="card">${opts.join('')}</div>`, onMount: (m) => {
+        m.el.addEventListener('click', async (ev) => {
+          const b = ev.target.closest('[data-m]'); if (!b) return;
+          m.close();
+          if (b.dataset.m === 'cancel') {
+            const reason = await confirmDialog(`${t('cancel_shipment')} ${s.ref}?`, { danger: true, withReason: true, okText: t('cancel_shipment') });
+            if (!reason) return;
+            try { await rpc('cancel_shipment', { p_shipment: s.id, p_reason: reason }); toast(t('saved')); rerender(); } catch (err) { toast(errText(err), 'err'); }
+          }
         });
-        const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { obs.disconnect(); if (changed) rerender(); } });
-        obs.observe(document.getElementById('modal-root'), { childList: true });
-        return;
-      }
-      if (act === 'depart') { if (!(await confirmDialog(t('depart_confirm')))) return; await rpc('update_shipment_status', { p_shipment: s.id, p_status: 'departed', p_note: null }); toast(t('saved')); return rerender(); }
-      if (act === 'arrive') { if (!(await confirmDialog(t('arrive_confirm')))) return; await rpc('update_shipment_status', { p_shipment: s.id, p_status: 'arrived', p_note: null }); toast(t('saved')); return rerender(); }
-      if (act === 'complete') { if (!(await confirmDialog(t('mark_completed') + '?'))) return; await rpc('update_shipment_status', { p_shipment: s.id, p_status: 'completed', p_note: null }); toast(t('saved')); return rerender(); }
-    } catch (err) { toast(errText(err), 'err'); }
+      } });
+    }
+  });
+}
+
+function trackMsg(s) {
+  return `Horse Cargo — ${s.ref}\n${t('status')}: ${t('st_' + s.status)}\n${t('route')}: ${s.origin_branch} → ${s.destination_branch}\n${publicTrackUrl(s.ref)}`;
+}
+
+function statusModal(s, done) {
+  const i = FLOW.indexOf(s.status);
+  const next = FLOW.slice(0, FLOW.length - 1).filter((x) => x !== s.status);
+  modal({
+    title: `${t('update_status')} · ${s.ref}`,
+    body: `<div class="callout info" style="margin-bottom:12px">${icon('info')}<div>${esc(t('now'))}: <b>${esc(t('st_' + s.status))}</b></div></div>
+      <form class="form" id="sf">
+        <div class="field full"><label class="req">${esc(t('new_status'))}</label><select class="input" name="status">
+          ${next.map((x, k) => `<option value="${x}" ${x === FLOW[i + 1] ? 'selected' : ''}>${esc(t('st_' + x))}</option>`).join('')}</select></div>
+        <div class="field full"><label>${esc(t('notes'))}</label><input class="input" name="note" placeholder="${esc(t('status_note_ph'))}"></div>
+        <div class="field full"><label><input type="checkbox" name="pub" checked> ${esc(t('public_update'))}</label></div>
+      </form>`,
+    foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn primary" id="ss">${icon('check')}${esc(t('save'))}</button>`,
+    onMount: (m) => { m.el.querySelector('#ss').onclick = (ev) => busy(ev.currentTarget, async () => {
+      const d = formData(m.el.querySelector('#sf'));
+      try { await rpc('set_shipment_status', { p_shipment: s.id, p_status: d.status, p_note: d.note, p_public: d.pub }); m.close(); toast(t('saved')); done(); }
+      catch (err) { toast(errText(err), 'err'); }
+    }); },
+  });
+}
+
+function paymentModal(s, done) {
+  const due = Math.max(Number(s.balance_usd), 0);
+  modal({
+    title: `${t('record_payment')} · ${s.ref}`,
+    body: `<div class="callout ${due > 0 ? 'warn' : 'ok'}" style="margin-bottom:14px">${icon('money')}<div>${esc(t('amount_due'))}: <b>${usd(due)}</b></div></div>
+      <form class="form" id="pay-form" novalidate>
+        <div class="field"><label class="req">${esc(t('currency'))}</label><select class="input" name="currency">
+          ${['USD', 'AED', 'TZS'].map((c) => `<option ${c === (s.invoice_currency || 'USD') ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label class="req">${esc(t('amount'))}</label><input class="input" name="amount" type="number" min="0" step="0.01" required inputmode="decimal"></div>
+        <div class="field"><label>${esc(t('fx_rate'))}</label><input class="input" name="fx_rate" type="number" step="0.0001" value="1"></div>
+        <div class="field"><label>${esc(t('usd_equiv'))}</label><input class="input" id="usd-eq" readonly></div>
+        <div class="field"><label class="req">${esc(t('method'))}</label><select class="input" name="method">
+          ${['cash', 'bank', 'mobile_money', 'card'].map((x) => `<option value="${x}">${esc(t('m_' + x))}</option>`).join('')}</select></div>
+        <div class="field"><label>${esc(t('txn_ref'))}</label><input class="input" name="reference"></div>
+        ${state.companies.length ? `<div class="field full"><label>${esc(t('acc_paid_into'))}</label><select class="input" name="account"><option value="">${esc(t('acc_auto_account'))}</option></select></div>` : ''}
+      </form>`,
+    foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn accent" id="pay-save">${icon('check')}${esc(t('save'))}</button>`,
+    onMount: (m) => {
+      const f = m.el.querySelector('#pay-form');
+      let accs = [];
+      const upd = (curChanged) => {
+        if (curChanged) {
+          const r = fxFor(f.currency.value);
+          f.fx_rate.value = r; f.fx_rate.readOnly = f.currency.value === 'USD';
+          if (due > 0) f.amount.value = f.currency.value === 'TZS' ? Math.round(due * r) : (due * r).toFixed(2);
+        }
+        m.el.querySelector('#usd-eq').value = usd(Number(f.amount.value || 0) / Number(f.fx_rate.value || 1));
+        fillAcc();
+      };
+      const fillAcc = () => {
+        if (!f.account) return;
+        const want = { cash: 'cash', bank: 'bank', mobile_money: 'mobile_money', card: 'bank' }[f.method.value];
+        const list = accs.filter((x) => x.currency === f.currency.value)
+          .sort((a, b) => (b.kind === want) - (a.kind === want) || (b.branch_code === state.profile?.branch_code) - (a.branch_code === state.profile?.branch_code));
+        const keep = f.account.value;
+        f.account.innerHTML = `<option value="">${esc(t('acc_auto_account'))}</option>` +
+          list.map((x) => `<option value="${x.id}">${esc(x.company_code)} · ${esc(x.name)}</option>`).join('');
+        if ([...f.account.options].some((o) => o.value === keep)) f.account.value = keep;
+      };
+      if (f.account) from('money_accounts').select('id,name,kind,currency,company_code,branch_code').eq('active', true).order('name')
+        .then(({ data }) => { accs = data || []; fillAcc(); });
+      f.currency.onchange = () => upd(true);
+      f.method.onchange = fillAcc;
+      f.amount.oninput = () => upd(false); f.fx_rate.oninput = () => upd(false);
+      upd(true);
+      m.el.querySelector('#pay-save').onclick = (ev) => busy(ev.currentTarget, async () => {
+        if (!checkRequired(f)) return;
+        const d = formData(f);
+        try {
+          const r = await rpc('record_payment', { p_shipment: s.id, p_amount: d.amount, p_currency: d.currency, p_method: d.method,
+            p_reference: d.reference, p_fx_rate: d.fx_rate, ...(d.account ? { p_account: d.account } : {}) });
+          m.close(); toast(`${t('payment_saved')} · ${r.ref}`); done();
+          setTimeout(() => modal({ title: r.ref,
+            body: `<div class="callout ok">${icon('check')}<div>${esc(t('payment_saved'))} — ${usd(r.amount_usd)}</div></div>`,
+            foot: `<button class="btn" data-close>${esc(t('close'))}</button><a class="btn primary" data-close href="#/doc/receipt/${r.id}">${icon('print')}${esc(t('receipt'))}</a>` }), 250);
+        } catch (err) { toast(errText(err), 'err'); }
+      });
+    },
+  });
+}
+
+function chargeModal(s, done) {
+  const KINDS = ['packing', 'handling', 'storage', 'delivery', 'duty', 'other'].concat(can('charge.discount') ? ['discount'] : []);
+  modal({
+    title: `${t('add_charge')} · ${s.ref}`,
+    body: `<form class="form" id="cf" novalidate>
+      <div class="field"><label class="req">${esc(t('charge_type'))}</label><select class="input" name="charge_type">
+        ${KINDS.map((k) => `<option value="${k}">${esc(t('ch_' + k))}</option>`).join('')}</select></div>
+      <div class="field"><label class="req">${esc(t('amount'))} USD</label><input class="input" type="number" step="0.01" min="0" name="unit_price" required inputmode="decimal"></div>
+      <div class="field full"><label>${esc(t('description'))}</label><input class="input" name="description"></div>
+      <div class="field"><label>${esc(t('qty'))}</label><input class="input" type="number" step="0.01" name="qty" value="1"></div>
+    </form>
+    <p class="muted small">${esc(t('duty_note'))}</p>`,
+    foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn primary" id="cs">${icon('check')}${esc(t('save'))}</button>`,
+    onMount: (m) => { m.el.querySelector('#cs').onclick = (ev) => busy(ev.currentTarget, async () => {
+      const f = m.el.querySelector('#cf'); if (!checkRequired(f)) return;
+      const d = formData(f);
+      try { await rpc('add_charge', { p_shipment: s.id, p_charge_type: d.charge_type, p_description: d.description || '', p_qty: d.qty || 1, p_unit_price: d.unit_price });
+        m.close(); toast(t('saved')); done(); } catch (err) { toast(errText(err), 'err'); }
+    }); },
+  });
+}
+
+function currencyModal(s, done) {
+  modal({
+    title: t('change_currency'),
+    body: `<form class="form" id="uf">
+      <div class="field"><label class="req">${esc(t('currency'))}</label><select class="input" name="currency">
+        ${['USD', 'AED', 'TZS'].map((c) => `<option ${c === s.invoice_currency ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+      <div class="field"><label>${esc(t('fx_rate'))}</label><input class="input" type="number" step="0.0001" name="fx_rate"></div>
+      <div class="field full"><label>${esc(t('amount_due'))}</label><input class="input" id="due" readonly></div></form>`,
+    foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn primary" id="us">${icon('check')}${esc(t('save'))}</button>`,
+    onMount: (m) => {
+      const f = m.el.querySelector('#uf');
+      const upd = () => {
+        if (!f.fx_rate.value || f.dataset.auto !== '0') f.fx_rate.value = fxFor(f.currency.value);
+        m.el.querySelector('#due').value = money(Number(s.invoice_total) * Number(f.fx_rate.value || 1), f.currency.value);
+      };
+      f.currency.onchange = () => { f.dataset.auto = '1'; upd(); };
+      f.fx_rate.oninput = () => { f.dataset.auto = '0'; m.el.querySelector('#due').value = money(Number(s.invoice_total) * Number(f.fx_rate.value || 1), f.currency.value); };
+      upd();
+      m.el.querySelector('#us').onclick = (ev) => busy(ev.currentTarget, async () => {
+        try { await rpc('set_invoice_currency', { p_shipment: s.id, p_currency: f.currency.value, p_fx_rate: Number(f.fx_rate.value) });
+          m.close(); toast(t('saved')); done(); } catch (err) { toast(errText(err), 'err'); }
+      });
+    },
+  });
+}
+
+function deliverModal(s, done) {
+  const bal = Number(s.balance_usd);
+  modal({
+    title: `${t('deliver_cargo')} · ${s.ref}`,
+    body: `${bal > 0.009 ? `<div class="callout warn" style="margin-bottom:12px">${icon('alert')}<div>${esc(t('balance_at_handover'))}: <b>${usd(bal)}</b></div></div>` : ''}
+      <form class="form" id="df" novalidate>
+        <div class="field"><label class="req">${esc(t('collector_name'))}</label><input class="input" name="name" required value="${esc(s.receiver_name)}"></div>
+        <div class="field"><label class="req">${esc(t('collector_phone'))}</label><input class="input" type="tel" name="phone" required value="${esc(s.receiver_phone)}"></div>
+        <div class="field"><label>${esc(t('id_type'))}</label><input class="input" name="id_type"></div>
+        <div class="field"><label>${esc(t('id_number'))}</label><input class="input" name="id_number"></div>
+        <div class="field full"><label>${esc(t('notes'))}</label><input class="input" name="notes"></div>
+      </form>`,
+    foot: `<button class="btn" data-close>${esc(t('cancel'))}</button><button class="btn accent" id="ds">${icon('check')}${esc(t('deliver_cargo'))}</button>`,
+    onMount: (m) => { m.el.querySelector('#ds').onclick = (ev) => busy(ev.currentTarget, async () => {
+      const f = m.el.querySelector('#df'); if (!checkRequired(f)) return;
+      const d = formData(f);
+      try {
+        const r = await rpc('deliver_shipment', { p_shipment: s.id, p_name: d.name, p_phone: d.phone, p_id_type: d.id_type, p_id_number: d.id_number, p_notes: d.notes });
+        m.close(); toast(`${t('delivered_ok')} · ${r.ref}`); done();
+      } catch (err) { toast(errText(err), 'err'); }
+    }); },
   });
 }

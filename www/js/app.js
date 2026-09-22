@@ -4,14 +4,13 @@ import { icon, esc, toast, $ } from './ui.js';
 
 const ROUTES = [
   [/^\/?$/, 'dashboard', 'dashboard'],
-  [/^\/bookings\/new$/, 'booking-new', 'bookings'],
-  [/^\/bookings$/, 'bookings', 'bookings'],
-  [/^\/booking\/([\w-]+)\/grn$/, 'grn', 'bookings'],
-  [/^\/booking\/([\w-]+)$/, 'booking', 'bookings'],
+  [/^\/shipments\/new$/, 'shipment-new', 'shipments'],
+  [/^\/shipments$/, 'shipments', 'shipments'],
+  [/^\/shipment\/([\w-]+)\/edit$/, 'shipment-new', 'shipments'],
+  [/^\/shipment\/([\w-]+)\/grn$/, 'grn', 'shipments'],
+  [/^\/shipment\/([\w-]+)$/, 'shipment', 'shipments'],
   [/^\/customers$/, 'customers', 'customers'],
   [/^\/customer\/([\w-]+)$/, 'customer', 'customers'],
-  [/^\/shipments$/, 'shipments', 'shipments'],
-  [/^\/shipment\/([\w-]+)$/, 'shipment', 'shipments'],
   [/^\/scan$/, 'scan', 'scan'],
   [/^\/rates$/, 'rates', 'rates'],
   [/^\/reports$/, 'reports', 'reports'],
@@ -37,9 +36,8 @@ const ROUTES = [
 function navItems() {
   const items = [
     { key: 'dashboard', href: '#/', ic: 'dashboard' },
-    { key: 'bookings', href: '#/bookings', ic: 'box' },
+    { key: 'shipments', href: '#/shipments', ic: 'box' },
     { key: 'customers', href: '#/customers', ic: 'users' },
-    { key: 'shipments', href: '#/shipments', ic: 'container' },
     { key: 'scan', href: '#/scan', ic: 'scan' },
     { sep: true, label: 'accounting', show: can('acc.read') && state.companies.length > 0 },
     { key: 'acc', href: '#/acc', ic: 'money', show: can('acc.read') && state.companies.length > 0 },
@@ -93,9 +91,9 @@ function renderShell() {
     </div>
     <nav class="bottom-nav">
       <a href="#/" data-nav="dashboard">${icon('dashboard')}<span>${esc(t('home'))}</span></a>
-      <a href="#/bookings" data-nav="bookings">${icon('box')}<span>${esc(t('bookings'))}</span></a>
+      <a href="#/shipments" data-nav="shipments">${icon('box')}<span>${esc(t('shipments'))}</span></a>
       <a href="#/scan" data-nav="scan" class="scan"><span class="ic">${icon('scan')}</span><span class="tx">${esc(t('scan'))}</span></a>
-      <a href="#/shipments" data-nav="shipments">${icon('container')}<span>${esc(t('shipments'))}</span></a>
+      <a href="#/customers" data-nav="customers">${icon('users')}<span>${esc(t('customers'))}</span></a>
       <a href="#/more" data-nav="more">${icon('menu')}<span>${esc(t('more'))}</span></a>
     </nav>
   </div>`;

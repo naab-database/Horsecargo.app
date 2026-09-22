@@ -21,7 +21,7 @@ export async function render({ el, setTitle, query, rerender }) {
       <th class="num">${esc(t('amount'))}</th><th class="num">USD</th><th></th></tr></thead>
       <tbody>${rows.map((x) => `<tr style="${x.void ? 'opacity:.5;text-decoration:line-through' : ''}">
         <td><b class="mono">${esc(x.ref)}</b><div class="muted small">${fdate(x.expense_date)} · ${esc(x.company_code)}${x.branch_code ? ' · ' + esc(x.branch_code) : ''}</div></td>
-        <td>${esc(x.description)}<div class="muted small">${[x.supplier_name, x.container_no || x.shipment_ref, x.booking_ref, x.reference].filter(Boolean).map(esc).join(' · ')}</div></td>
+        <td>${esc(x.description)}<div class="muted small">${[x.supplier_name, x.shipment_ref, x.reference].filter(Boolean).map(esc).join(' · ')}</div></td>
         <td class="hide-m"><span class="mono small">${esc(x.account_code)}</span> ${esc(x.account_name || '')}</td>
         <td class="hide-m">${esc(x.money_account_name)}</td>
         <td class="num nowrap">${money(x.amount_txn, x.currency)}</td><td class="num">${usd(x.amount_usd, { bare: true })}</td>
@@ -33,7 +33,7 @@ export async function render({ el, setTitle, query, rerender }) {
     { label: 'Ref', key: 'ref' }, { label: 'Date', key: 'expense_date' }, { label: 'Company', key: 'company_code' }, { label: 'Branch', key: 'branch_code' },
     { label: 'Account', key: 'account_code' }, { label: 'Account name', key: 'account_name' }, { label: 'Description', key: 'description' },
     { label: 'Paid from', key: 'money_account_name' }, { label: 'Currency', key: 'currency' }, { label: 'Amount', key: 'amount_txn' }, { label: 'USD', key: 'amount_usd' },
-    { label: 'Supplier', key: 'supplier_name' }, { label: 'Container', key: 'container_no' }, { label: 'Booking', key: 'booking_ref' }, { label: 'Void', key: 'void' }]));
+    { label: 'Supplier', key: 'supplier_name' }, { label: 'Shipment', key: 'shipment_ref' }, { label: 'Void', key: 'void' }]));
   if ($('#new', el)) $('#new', el).onclick = () => expenseModal(null, load);
   el.addEventListener('click', async (e) => {
     const v = e.target.closest('[data-void]'); if (!v) return;
@@ -65,7 +65,7 @@ export async function expenseModal(shipmentId, done) {
       <div class="field"><label>${esc(t('usd_equiv'))}</label><input class="input" id="xusd" readonly></div>
       <div class="field"><label>${esc(t('date'))}</label><input class="input" type="date" name="date" value="${new Date().toISOString().slice(0, 10)}"></div>
       <div class="field"><label>${esc(t('acc_supplier'))} <span class="muted small">(${esc(t('optional'))})</span></label><select class="input" name="supplier"><option value="">—</option>${sups.map((s) => `<option value="${s.id}" data-acc="${esc(s.default_account_code || '')}">${esc(s.name)}</option>`).join('')}</select></div>
-      <div class="field"><label>${esc(t('acc_link_container'))} <span class="muted small">(${esc(t('optional'))})</span></label><select class="input" name="shipment">${shOpts}</select></div>
+      <div class="field"><label>${esc(t('acc_link_shipment'))} <span class="muted small">(${esc(t('optional'))})</span></label><select class="input" name="shipment">${shOpts}</select></div>
       <div class="field"><label>${esc(t('txn_ref'))}</label><input class="input" name="reference"></div>
       <div class="field full muted small">${esc(t('acc_ic_hint'))}</div>
     </form>`,

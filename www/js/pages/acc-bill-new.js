@@ -32,7 +32,7 @@ export async function render({ el, setTitle, query }) {
       <div class="card">
         <div class="card-h"><h2>${esc(t('acc_lines'))}</h2><button type="button" class="btn sm" id="add">${icon('plus')}${esc(t('add_line'))}</button></div>
         <div class="card-b" style="padding:10px"><div class="table-wrap"><table class="t" id="lines"><thead><tr>
-          <th>${esc(t('acc_account'))}</th><th>${esc(t('description'))}</th><th>${esc(t('acc_link_container'))}</th><th class="num">${esc(t('amount'))}</th><th></th></tr></thead><tbody></tbody></table></div>
+          <th>${esc(t('acc_account'))}</th><th>${esc(t('description'))}</th><th>${esc(t('acc_link_shipment'))}</th><th class="num">${esc(t('amount'))}</th><th></th></tr></thead><tbody></tbody></table></div>
           <p class="muted small" style="margin:8px 6px 0">${esc(t('acc_ic_hint'))}</p></div>
       </div>
     </div>

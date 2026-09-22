@@ -42,7 +42,7 @@ export async function render({ el, params, setTitle }) {
       ${rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('date'))}</th><th>${esc(t('reference'))}</th><th>${esc(t('description'))}</th><th class="num">Dr</th><th class="num">Cr</th><th class="num">${esc(t('balance'))}</th></tr></thead>
       <tbody>${rows.map((l) => `<tr class="click" data-j="${l.journal_id}"><td class="nowrap">${fdate(l.entry_date)}</td>
         <td><b class="mono small">${esc(l.journal_ref)}</b><div class="muted small">${esc(l.company_code)} · ${esc(sourceLabel(l.source))}</div></td>
-        <td class="small">${esc(l.description || l.memo || '')}<div class="muted">${[l.booking_ref, l.container_no, l.customer_name, l.supplier_name].filter(Boolean).map(esc).join(' · ')}</div></td>
+        <td class="small">${esc(l.description || l.memo || '')}<div class="muted">${[l.shipment_ref, l.customer_name, l.supplier_name].filter(Boolean).map(esc).join(' · ')}</div></td>
         <td class="num">${Number(l.debit) ? usd(l.debit, { bare: true }) : ''}</td><td class="num">${Number(l.credit) ? usd(l.credit, { bare: true }) : ''}</td>
         <td class="num">${signed(l.balance)}</td></tr>`).join('')}</tbody></table></div>` : empty(t('nothing_here'), 'list')}`;
   };
@@ -51,7 +51,7 @@ export async function render({ el, params, setTitle }) {
   $('#csv', el).onclick = () => downloadCSV(`horse-cargo-ledger-${code}.csv`, toCSV(rows, [
     { label: 'Date', key: 'entry_date' }, { label: 'Journal', key: 'journal_ref' }, { label: 'Company', key: 'company_code' }, { label: 'Source', key: 'source' },
     { label: 'Description', key: 'description' }, { label: 'Memo', key: 'memo' }, { label: 'Debit', key: 'debit' }, { label: 'Credit', key: 'credit' }, { label: 'Balance', key: 'balance' },
-    { label: 'Booking', key: 'booking_ref' }, { label: 'Container', key: 'container_no' }, { label: 'Customer', key: 'customer_name' }, { label: 'Supplier', key: 'supplier_name' }]));
+    { label: 'Shipment', key: 'shipment_ref' }, { label: 'Customer', key: 'customer_name' }, { label: 'Supplier', key: 'supplier_name' }]));
   el.addEventListener('click', (e) => { const tr = e.target.closest('tr[data-j]'); if (tr) journalDetail(tr.dataset.j, load); });
   await load();
 }

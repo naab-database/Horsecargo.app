@@ -5,7 +5,7 @@ import { openCustomerModal } from './customers.js';
 
 export async function render({ el, params, setTitle, rerender }) {
   const c = await run(from('v_customers').select('*').eq('id', params[0]).single());
-  const bookings = await run(from('v_bookings').select('*').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(200));
+  const shipments = await run(from('v_shipments').select('*').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(200));
   setTitle(c.name);
   el.innerHTML = `
   <div class="page-head">
@@ -13,17 +13,17 @@ export async function render({ el, params, setTitle, rerender }) {
     <div class="row">
       <a class="btn" href="${whatsappLink(c.phone, `Habari ${c.name}, `)}" target="_blank" rel="noopener">${icon('whatsapp')}WhatsApp</a>
       ${can('customer.write') ? `<button class="btn" id="edit">${icon('gear')}${esc(t('edit'))}</button>` : ''}
-      ${can('booking.create') ? `<a class="btn primary" href="#/bookings/new?customer=${c.id}">${icon('plus')}${esc(t('new_booking'))}</a>` : ''}
+      ${can('shipment.create') ? `<a class="btn primary" href="#/shipments/new?customer=${c.id}">${icon('plus')}${esc(t('new_shipment'))}</a>` : ''}
     </div>
   </div>
   <div class="split">
     <div class="card">
-      <div class="card-h"><h2>${esc(t('bookings'))}</h2><span class="muted">${bookings.length}</span></div>
-      ${bookings.length ? `
-      <div class="table-wrap cards-m"><table class="t"><thead><tr><th>${esc(t('booking_ref'))}</th><th>${esc(t('route'))}</th><th>${esc(t('status'))}</th><th class="num">${esc(t('balance'))}</th><th class="hide-m">${esc(t('date'))}</th></tr></thead>
-      <tbody>${bookings.map((b) => `<tr class="click" data-href="#/booking/${b.id}"><td class="mono">${esc(b.ref)}</td><td>${modeTag(b.mode)} ${route(b.origin_branch, b.destination_branch)}</td>
+      <div class="card-h"><h2>${esc(t('shipments'))}</h2><span class="muted">${shipments.length}</span></div>
+      ${shipments.length ? `
+      <div class="table-wrap cards-m"><table class="t"><thead><tr><th>${esc(t('shipment_no'))}</th><th>${esc(t('route'))}</th><th>${esc(t('status'))}</th><th class="num">${esc(t('balance'))}</th><th class="hide-m">${esc(t('date'))}</th></tr></thead>
+      <tbody>${shipments.map((b) => `<tr class="click" data-href="#/shipment/${b.id}"><td class="mono">${esc(b.ref)}</td><td>${modeTag(b.mode)} ${route(b.origin_branch, b.destination_branch)}</td>
         <td>${statusBadge(b.status)}</td><td class="num" style="${b.balance_usd > 0 ? 'color:var(--red);font-weight:700' : ''}">${usd(b.balance_usd)}</td><td class="hide-m">${fdate(b.created_at)}</td></tr>`).join('')}</tbody></table></div>
-      <div class="list-cards">${bookings.map((b) => `<a class="lc" href="#/booking/${b.id}"><div class="top"><span class="mono"><b>${esc(b.ref)}</b></span>${statusBadge(b.status)}</div>
+      <div class="list-cards">${shipments.map((b) => `<a class="lc" href="#/shipment/${b.id}"><div class="top"><span class="mono"><b>${esc(b.ref)}</b></span>${statusBadge(b.status)}</div>
         <div class="sub">${esc(b.mode.toUpperCase())} ${esc(b.origin_branch)} → ${esc(b.destination_branch)} · ${usd(b.balance_usd)}</div></a>`).join('')}</div>` : empty()}
     </div>
     <div class="card">

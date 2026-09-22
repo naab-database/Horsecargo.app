@@ -46,7 +46,7 @@ export async function render({ el, setTitle, rerender }) {
         ${d.draft_journals ? `<a class="callout warn" href="#/acc/journals?status=draft">${icon('clock')}<div><b>${d.draft_journals}</b> ${esc(t('acc_drafts_waiting'))}</div></a>` : ''}
         ${!co && Math.abs(d.ic_net) > 0.01 ? `<div class="callout danger">${icon('alert')}<div>${esc(t('acc_ic_mismatch'))}: ${usd(d.ic_net)}</div></div>` : ''}
         <div class="card"><div class="card-h"><h2>${esc(t('quick_actions'))}</h2></div><div class="card-b stack" style="gap:8px">
-          <a class="btn" style="justify-content:flex-start" href="#/acc/reports?tab=containers">${icon('container')}${esc(t('acc_container_pnl'))}</a>
+          <a class="btn" style="justify-content:flex-start" href="#/acc/reports?tab=ships">${icon('box')}${esc(t('acc_shipment_pnl'))}</a>
           <a class="btn" style="justify-content:flex-start" href="#/acc/reports?tab=pl">${icon('chart')}${esc(t('acc_pl'))}</a>
           <a class="btn" style="justify-content:flex-start" href="#/acc/reports?tab=bs">${icon('scale')}${esc(t('acc_bs'))}</a>
           <a class="btn" style="justify-content:flex-start" href="#/acc/bills">${icon('list')}${esc(t('acc_bills'))} · ${usd(d.open_bills_usd)}</a>

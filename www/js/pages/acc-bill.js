@@ -35,9 +35,9 @@ export async function render({ el, params, setTitle, rerender }) {
     <div class="split">
       <div class="stack">
         <div class="card"><div class="card-h"><h2>${esc(t('acc_lines'))}</h2><span class="muted small">${fdate(b.bill_date)}${b.due_date ? ' → ' + fdate(b.due_date) : ''}</span></div>
-          <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('acc_account'))}</th><th>${esc(t('description'))}</th><th>${esc(t('in_container'))}</th><th class="num">${esc(t('amount'))}</th><th class="num">USD</th></tr></thead>
+          <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('acc_account'))}</th><th>${esc(t('description'))}</th><th>${esc(t('shipment_no'))}</th><th class="num">${esc(t('amount'))}</th><th class="num">USD</th></tr></thead>
           <tbody>${lines.map((l) => `<tr><td class="mono">${esc(l.account_code)}</td><td>${esc(l.description)}</td>
-            <td>${l.shipment_id ? `<a class="mono" href="#/shipment/${l.shipment_id}">${esc(l.container_no || l.shipment_ref)}</a>` : l.booking_id ? `<a class="mono" href="#/booking/${l.booking_id}">${esc(l.booking_ref)}</a>` : '—'}</td>
+            <td>${l.shipment_id ? `<a class="mono" href="#/shipment/${l.shipment_id}">${esc(l.shipment_ref)}</a>` : l.shipment_id ? `<a class="mono" href="#/shipment/${l.shipment_id}">${esc(l.shipment_ref)}</a>` : '—'}</td>
             <td class="num nowrap">${money(l.amount_txn, b.currency)}</td><td class="num">${usd(l.amount_usd, { bare: true })}</td></tr>`).join('')}</tbody></table></div></div>
         <div class="card"><div class="card-h"><h2>${esc(t('acc_payments'))}</h2></div>
           ${pays.length ? `<div class="table-wrap"><table class="t"><tbody>${pays.map((p) => `<tr style="${p.void ? 'opacity:.5;text-decoration:line-through' : ''}">

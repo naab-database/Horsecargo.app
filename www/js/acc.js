@@ -67,6 +67,6 @@ export const sourceLabel = (s) => t('src_' + s);
 
 // shipments & bookings pickers for linking costs
 export async function shipmentOptions(selected = '') {
-  const rows = await run(from('shipments').select('id,ref,container_no,status,origin_branch,destination_branch').order('created_at', { ascending: false }).limit(200));
-  return `<option value="">—</option>` + rows.map((s) => `<option value="${s.id}" ${selected === s.id ? 'selected' : ''}>${esc(s.container_no || s.ref)} · ${esc(s.origin_branch)}→${esc(s.destination_branch)}</option>`).join('');
+  const rows = await run(from('v_shipments').select('id,ref,customer_name,status,origin_branch,destination_branch').order('created_at', { ascending: false }).limit(300));
+  return `<option value="">—</option>` + rows.map((s) => `<option value="${s.id}" ${selected === s.id ? 'selected' : ''}>${esc(s.ref)} · ${esc(s.customer_name)} · ${esc(s.origin_branch)}→${esc(s.destination_branch)}</option>`).join('');
 }

@@ -69,11 +69,11 @@ export async function render({ el, setTitle, query }) {
     list.innerHTML = `
       <div class="table-wrap cards-m"><table class="t"><thead><tr>
         <th>${esc(t('customer_code'))}</th><th>${esc(t('name'))}</th><th>${esc(t('phone'))}</th><th class="hide-m">${esc(t('city'))}</th>
-        <th class="num">${esc(t('bookings_count'))}</th><th class="num">${esc(t('balance'))}</th></tr></thead>
+        <th class="num">${esc(t('shipments_count'))}</th><th class="num">${esc(t('balance'))}</th></tr></thead>
       <tbody>${rows.map((r) => `<tr class="click" data-href="#/customer/${r.id}">
         <td class="mono">${esc(r.code)}</td><td><b>${esc(r.name)}</b>${r.company ? `<div class="muted small">${esc(r.company)}</div>` : ''}</td>
         <td class="nowrap">${esc(r.phone)}</td><td class="hide-m">${esc(r.city || '—')}</td>
-        <td class="num">${r.booking_count}</td><td class="num" style="${r.balance_usd > 0 ? 'color:var(--red);font-weight:700' : ''}">${usd(r.balance_usd)}</td></tr>`).join('')}</tbody></table></div>
+        <td class="num">${r.shipment_count}</td><td class="num" style="${r.balance_usd > 0 ? 'color:var(--red);font-weight:700' : ''}">${usd(r.balance_usd)}</td></tr>`).join('')}</tbody></table></div>
       <div class="list-cards">${rows.map((r) => `<a class="lc" href="#/customer/${r.id}"><div class="top"><b>${esc(r.name)}</b>
         <span class="num" style="${r.balance_usd > 0 ? 'color:var(--red);font-weight:700' : ''}">${usd(r.balance_usd)}</span></div>
         <div class="sub mono">${esc(r.code)} · ${esc(r.phone)}</div></a>`).join('')}</div>`;

@@ -6,9 +6,9 @@ import { startCamera, refFromText } from '../scanner.js';
 async function openRef(raw) {
   const ref = refFromText(raw) || String(raw || '').trim().toUpperCase();
   if (!ref) return false;
-  const b = await run(from('bookings').select('id').ilike('ref', ref).maybeSingle());
+  const b = await run(from('shipments').select('id').ilike('ref', ref).maybeSingle());
   if (!b) { toast(`${t('not_found')}: ${ref}`, 'err'); return false; }
-  location.hash = `#/booking/${b.id}`;
+  location.hash = `#/shipment/${b.id}`;
   return true;
 }
 

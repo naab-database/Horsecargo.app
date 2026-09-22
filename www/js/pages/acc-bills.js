@@ -25,10 +25,10 @@ export async function render({ el, setTitle, query, rerender }) {
     if (status) q = q.eq('status', status);
     rows = await run(q);
     $('#list', el).innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr>
-      <th>${esc(t('acc_bill'))}</th><th>${esc(t('acc_supplier'))}</th><th class="hide-m">${esc(t('in_container'))}</th><th>${esc(t('status'))}</th>
+      <th>${esc(t('acc_bill'))}</th><th>${esc(t('acc_supplier'))}</th><th class="hide-m">${esc(t('shipment_no'))}</th><th>${esc(t('status'))}</th>
       <th class="num">${esc(t('amount'))}</th><th class="num">${esc(t('balance'))} USD</th><th class="hide-m">${esc(t('date'))}</th></tr></thead>
       <tbody>${rows.map((b) => `<tr class="click" data-href="#/acc/bill/${b.id}"><td><b class="mono">${esc(b.ref)}</b><div class="muted small">${esc(b.company_code)} · ${esc(b.branch_code)}${b.supplier_invoice_no ? ' · #' + esc(b.supplier_invoice_no) : ''}</div></td>
-        <td>${esc(b.supplier_name)}</td><td class="hide-m mono small">${esc(b.containers || '—')}</td><td>${billBadge(b.status)}</td>
+        <td>${esc(b.supplier_name)}</td><td class="hide-m mono small">${esc(b.shipments || '—')}</td><td>${billBadge(b.status)}</td>
         <td class="num nowrap">${money(b.total_txn, b.currency)}</td><td class="num" style="${b.balance_usd > 0 && b.status !== 'void' ? 'color:var(--red);font-weight:700' : ''}">${b.status === 'void' ? '—' : usd(b.balance_usd)}</td>
         <td class="hide-m nowrap">${fdate(b.bill_date)}</td></tr>`).join('')}</tbody></table></div>` : empty(t('nothing_here'), 'list');
   };
@@ -39,6 +39,6 @@ export async function render({ el, setTitle, query, rerender }) {
     { label: 'Bill', key: 'ref' }, { label: 'Company', key: 'company_code' }, { label: 'Branch', key: 'branch_code' }, { label: 'Date', key: 'bill_date' },
     { label: 'Supplier', key: 'supplier_name' }, { label: 'Supplier invoice', key: 'supplier_invoice_no' }, { label: 'Currency', key: 'currency' },
     { label: 'Total', key: 'total_txn' }, { label: 'Total USD', key: 'total_usd' }, { label: 'Paid USD', key: 'paid_usd' }, { label: 'Balance USD', key: 'balance_usd' },
-    { label: 'Status', key: 'status' }, { label: 'Containers', key: 'containers' }]));
+    { label: 'Status', key: 'status' }, { label: 'Shipments', key: 'shipments' }]));
   await load();
 }

@@ -19,7 +19,7 @@ export async function render({ el, setTitle }) {
       <div class="field full"><label>${esc(t('invoice_terms'))}</label><textarea class="input" name="invoice_terms" ${ro}>${esc(s.invoice_terms)}</textarea></div>
     </div></div>
     <div class="card"><div class="card-h"><h2>${esc(t('commercial_rules'))}</h2></div><div class="card-b form">
-      ${f('deposit_pct_sea', 'number', '1')}${f('deposit_pct_air', 'number', '1')}${f('min_cbm_sea', 'number', '0.01')}${f('air_volumetric_divisor', 'number', '1')}
+      ${f('min_cbm_sea', 'number', '0.01')}${f('air_volumetric_divisor', 'number', '1')}
       ${f('fx_aed', 'number', '0.0001')}${f('fx_tzs', 'number', '0.01')}${f('free_storage_days', 'number', '1')}${f('storage_rate_per_day', 'number', '0.01')}
     </div></div>
     <div class="card"><div class="card-h"><h2>${esc(t('branches'))}</h2></div><div class="card-b tight"><table class="t"><tbody>

@@ -3,12 +3,12 @@ import { from, run, rpc, can, sb, state, errText, photoBucket, catName } from '.
 import { icon, esc, usd, num, toast, busy, confirmDialog, modal, $, $$ } from '../ui.js';
 
 export async function render({ el, params, setTitle }) {
-  const b = await run(from('v_bookings').select('*').eq('id', params[0]).single());
+  const b = await run(from('v_shipments').select('*').eq('id', params[0]).single());
   setTitle(`GRN · ${b.ref}`);
   if (!can('grn.record')) { el.innerHTML = `<div class="callout danger">${icon('lock')}<div>${esc(errText({ message: 'NOT_ALLOWED:' }))}</div></div>`; return; }
-  if (b.status !== 'booked') {
-    el.innerHTML = `<div class="card card-b stack"><div class="callout ${b.status === 'pending_deposit' ? 'danger' : 'info'}">${icon('lock')}<div>${esc(b.status === 'pending_deposit' ? t('gate_deposit') : `${b.ref}: ${t('st_' + b.status)}`)}</div></div>
-      <div><a class="btn" href="#/booking/${b.id}">${icon('arrowLeft')}${esc(t('back'))}</a></div></div>`;
+  if (b.grn_id || ['delivered', 'cancelled'].includes(b.status)) {
+    el.innerHTML = `<div class="card card-b stack"><div class="callout info">${icon('lock')}<div>${esc(b.grn_id ? t('grn_exists') : `${b.ref}: ${t('st_' + b.status)}`)}</div></div>
+      <div><a class="btn" href="#/shipment/${b.id}">${icon('arrowLeft')}${esc(t('back'))}</a></div></div>`;
     return;
   }
   const s = state.settings;
@@ -24,7 +24,7 @@ export async function render({ el, params, setTitle }) {
       <div class="card">
         <div class="card-h"><h2>${esc(t('measurements'))}</h2><button class="btn sm" id="add-line">${icon('plus')}${esc(t('add_line'))}</button></div>
         <div class="card-b" style="padding:10px">
-          <div class="muted small" style="padding:0 6px 8px">${esc(t('cargo_description'))}: ${esc(b.description)} · ≈ ${num(b.est_pieces, 0)} pcs / ${num(b.est_cbm, 2)} CBM / ${num(b.est_kg, 1)} kg</div>
+          <div class="muted small" style="padding:0 6px 8px">${esc(t('cargo_description'))}: ${esc(b.description)} · ${b.mode === 'sea' ? `${num(b.cbm, 3)} CBM` : `${num(b.weight_kg || b.actual_kg, 1)} kg`} ${esc(t('declared'))}</div>
           <div class="table-wrap"><table class="t" id="lines"><thead><tr>
             <th>${esc(t('pieces'))}</th><th>${esc(t('length_cm'))}</th><th>${esc(t('width_cm'))}</th><th>${esc(t('height_cm'))}</th><th>${esc(t('weight_kg'))}</th><th>${esc(t('packaging'))}</th><th class="num">CBM</th><th></th></tr></thead>
             <tbody></tbody></table></div>
@@ -50,6 +50,7 @@ export async function render({ el, params, setTitle }) {
         <div style="border-top:1px solid var(--line);padding-top:10px" class="row"><span class="muted" style="flex:1">${esc(t('est_freight'))}</span><b class="num" id="t-fr" style="font-size:22px">$0.00</b></div>
         <div class="muted small">${cat ? (b.mode === 'sea' ? `${usd(cat.sea_rate_cbm)} / CBM · min ${num(s.min_cbm_sea, 2)} CBM · min ${usd(cat.min_charge_sea)}` : `${usd(cat.air_rate_kg)} / kg · min ${usd(cat.min_charge_air)}`) : ''}</div>
         <div class="callout warn">${icon('lock')}<div class="small">${esc(t('grn_confirm'))}</div></div>
+        ${can('rate.override') ? `<label class="row small" style="gap:8px;margin-bottom:8px"><input type="checkbox" id="reprice"> ${esc(t('reprice_from_grn'))}</label>` : ''}
         <button class="btn primary" id="save" style="min-height:46px">${icon('check')}${esc(t('record_grn'))}</button>
       </div>
     </div>
@@ -113,14 +114,15 @@ export async function render({ el, params, setTitle }) {
         try {
           const condition = $('#cond button.on', el).dataset.v;
           const photos = await uploadPhotos(b);
-          const r = await rpc('record_grn', { p_booking: b.id, p_lines: lines, p_condition: condition, p_notes: $('#cond-notes', el).value || null, p_photos: photos });
+          const r = await rpc('record_grn', { p_shipment: b.id, p_lines: lines, p_condition: condition, p_notes: $('#cond-notes', el).value || null, p_photos: photos,
+            p_reprice: !!($('#reprice', el) && $('#reprice', el).checked) });
           toast(`${t('grn_saved')} · ${r.grn_ref}`);
           modal({
             title: r.grn_ref,
-            body: `<div class="callout ok">${icon('check')}<div><b>${esc(t('grn_saved'))}</b><br>${r.pieces} pcs · ${num(r.cbm, 3)} CBM · ${num(r.kg, 1)} kg<br>${esc(t('invoice'))} ${esc(r.invoice_ref)}: <b>${usd(r.freight)}</b></div></div>`,
-            foot: `<a class="btn" data-close href="#/booking/${b.id}">${esc(t('booking'))}</a><a class="btn primary" data-close href="#/doc/labels/${b.id}">${icon('tag')}${esc(t('print_labels'))}</a>`,
+            body: `<div class="callout ok">${icon('check')}<div><b>${esc(t('grn_saved'))}</b><br>${r.pieces} pcs · ${num(r.cbm, 3)} CBM · ${num(r.kg, 1)} kg</div></div>`,
+            foot: `<a class="btn" data-close href="#/shipment/${b.id}">${esc(t('shipment'))}</a><a class="btn primary" data-close href="#/doc/label/${b.id}">${icon('tag')}${esc(t('print_labels'))}</a>`,
           });
-          location.hash = `#/booking/${b.id}`;
+          location.hash = `#/shipment/${b.id}`;
         } catch (err) { toast(errText(err), 'err'); }
       });
     });

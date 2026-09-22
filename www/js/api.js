@@ -11,7 +11,6 @@ export const state = { user: null, profile: null, settings: null, branches: [], 
 // ───────── error translation (server refusals → readable text) ─────────
 const SW = {
   NOT_ALLOWED: 'Cheo chako hakiruhusu kitendo hiki.',
-  DEPOSIT_GATE: 'Kizuizi cha amana: booking hii haina amana — mzigo hauwezi kupokelewa.',
   SEGREGATION: 'Mgawanyo wa majukumu: mtu mwingine lazima afanye hatua hii.',
 };
 export function errText(e) {
@@ -20,10 +19,6 @@ export function errText(e) {
   if (m.includes('Invalid login credentials')) return getLang() === 'sw' ? 'Barua pepe au nenosiri si sahihi.' : 'Wrong email or password.';
   if (m.includes('Failed to fetch') || m.includes('NetworkError')) return getLang() === 'sw' ? 'Hakuna mtandao. Jaribu tena.' : 'No connection. Please try again.';
   if (code === 'NOT_ALLOWED') return getLang() === 'sw' ? SW.NOT_ALLOWED : 'Your role is not allowed to do this.';
-  if (code === 'SETTLEMENT_GATE') {
-    const amt = (m.match(/USD ([\d.]+)/) || [])[1];
-    return getLang() === 'sw' ? `Kizuizi cha malipo: deni la USD ${amt} bado halijalipwa — mzigo haukabidhiwi.` : m.replace(/^[A-Z_]+:\s*/, 'Settlement gate: ');
-  }
   if (code && getLang() === 'sw' && SW[code]) return SW[code];
   if (m.includes('permission denied')) return getLang() === 'sw' ? SW.NOT_ALLOWED : 'Your role is not allowed to do this.';
   return m.replace(/^[A-Z_]+:\s*/, '');
@@ -69,21 +64,20 @@ export const catName = (row) => (getLang() === 'sw' && row.category_name_sw) ? r
 // ───────── permissions (mirror of has_role() in the database) ─────────
 const PERMS = {
   'customer.write': ['manager', 'counter', 'cashier'],
-  'booking.create': ['manager', 'counter'],
-  'booking.edit': ['manager', 'counter'],
-  'booking.cancel': ['manager'],
-  'payment.record': ['cashier', 'manager'],
+  'shipment.create': ['manager', 'counter', 'operations', 'warehouse'],
+  'shipment.edit': ['manager', 'counter', 'operations'],
+  'shipment.cancel': ['manager'],
+  'shipment.status': ['operations', 'manager', 'warehouse', 'counter', 'release_officer'],
+  'payment.record': ['cashier', 'manager', 'counter'],
   'payment.void': ['manager'],
-  'grn.record': ['warehouse', 'manager'],
-  'invoice.line': ['manager', 'counter', 'operations'],
-  'invoice.discount': ['manager'],
-  'invoice.remove': ['manager'],
-  'shipment.write': ['manager', 'operations'],
-  'shipment.load': ['operations', 'warehouse', 'manager'],
-  'shipment.status': ['operations', 'manager'],
-  'booking.status': ['operations', 'manager'],
+  'grn.record': ['warehouse', 'manager', 'operations'],
+  'charge.add': ['manager', 'counter', 'operations'],
+  'charge.discount': ['manager'],
+  'charge.remove': ['manager'],
+  'rate.override': ['manager'],
+  'currency.set': ['manager', 'cashier', 'counter'],
   'tracking.note': ['operations', 'manager', 'counter', 'warehouse'],
-  'release': ['release_officer', 'manager'],
+  'deliver': ['release_officer', 'manager', 'operations', 'counter'],
   'rates.write': ['manager'],
   'settings.write': ['manager'],
   'audit.read': ['manager'],
@@ -101,18 +95,30 @@ export function can(action) {
 }
 export const isAdmin = () => state.profile?.role === 'admin' && state.profile?.active;
 
-// ───────── pricing preview (server is authoritative) ─────────
-export function estimateFreight(mode, catId, cbm, kg) {
-  const s = state.settings; const c = state.categories.find((x) => x.id === Number(catId));
-  if (!s || !c) return 0;
-  if (mode === 'sea') return Math.max(Math.max(Number(cbm || 0), Number(s.min_cbm_sea)) * c.sea_rate_cbm, c.min_charge_sea);
-  const vol = Number(cbm || 0) * 1e6 / Number(s.air_volumetric_divisor);
-  return Math.max(Math.max(Number(kg || 0), vol) * c.air_rate_kg, c.min_charge_air);
-}
-export function depositFor(mode, quote) {
+// ───────── pricing preview (the server is authoritative) ─────────
+export const rateFor = (mode, catId) => {
+  const c = state.categories.find((x) => x.id === Number(catId));
+  if (!c) return 0;
+  return Number(mode === 'sea' ? c.sea_rate_cbm : c.air_rate_kg);
+};
+export function chargeQty(mode, cbm, kg) {
   const s = state.settings; if (!s) return 0;
-  return Math.round(quote * (mode === 'sea' ? s.deposit_pct_sea : s.deposit_pct_air)) / 100;
+  if (mode === 'sea') return Math.round(Math.max(Number(cbm || 0), Number(s.min_cbm_sea)) * 1000) / 1000;
+  const vol = Math.round(Number(cbm || 0) * 1e6 / Number(s.air_volumetric_divisor) * 10) / 10;
+  return Math.round(Math.max(Number(kg || 0), vol) * 10) / 10;
 }
+export function estimateFreight(mode, catId, cbm, kg, rate) {
+  const c = state.categories.find((x) => x.id === Number(catId));
+  const r = rate === undefined || rate === null || rate === '' ? rateFor(mode, catId) : Number(rate);
+  const amt = Math.round(chargeQty(mode, cbm, kg) * r * 100) / 100;
+  if (!c) return amt;
+  return Math.max(amt, Number(mode === 'sea' ? c.min_charge_sea : c.min_charge_air) || 0);
+}
+export const fxFor = (cur) => {
+  const s = state.settings || {};
+  return cur === 'AED' ? Number(s.fx_aed) : cur === 'TZS' ? Number(s.fx_tzs) : 1;
+};
+export const destinations = () => state.branches.filter((b) => b.code !== 'DXB' && b.active);
 
 export function publicTrackUrl(ref) {
   const base = cfg.PUBLIC_TRACK_URL || (location.origin + location.pathname.replace(/[^/]*$/, '') + 'track.html');

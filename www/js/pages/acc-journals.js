@@ -34,7 +34,7 @@ export async function render({ el, setTitle, query }) {
     $('#list', el).innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr>
       <th>${esc(t('reference'))}</th><th>${esc(t('acc_narration'))}</th><th class="hide-m">${esc(t('acc_source'))}</th><th>${esc(t('status'))}</th><th class="num">USD</th></tr></thead>
       <tbody>${rows.map((j) => `<tr class="click" data-id="${j.id}"><td><b class="mono">${esc(j.ref)}</b><div class="muted small">${fdate(j.entry_date)} · ${esc(j.company_code)}</div></td>
-        <td>${esc(j.memo || '')}<div class="muted small">${[j.booking_ref, j.container_no || j.shipment_ref].filter(Boolean).map(esc).join(' · ')}</div></td>
+        <td>${esc(j.memo || '')}<div class="muted small">${[j.shipment_ref].filter(Boolean).map(esc).join(' · ')}</div></td>
         <td class="hide-m">${esc(sourceLabel(j.source))}</td><td>${jBadge(j)}</td><td class="num">${usd(j.total_usd, { bare: true })}</td></tr>`).join('')}</tbody></table></div>`
       : empty(t('nothing_here'), 'list');
   };
@@ -48,7 +48,7 @@ export async function render({ el, setTitle, query }) {
       { label: 'Journal', key: 'journal_ref' }, { label: 'Date', key: 'entry_date' }, { label: 'Company', key: 'company_code' }, { label: 'Source', key: 'source' },
       { label: 'Status', key: 'journal_status' }, { label: 'Account', key: 'account_code' }, { label: 'Account name', key: 'account_name' },
       { label: 'Debit USD', key: 'debit' }, { label: 'Credit USD', key: 'credit' }, { label: 'Currency', key: 'currency' }, { label: 'Amount (txn)', key: 'amount_txn' },
-      { label: 'FX', key: 'fx_rate' }, { label: 'Branch', key: 'branch_code' }, { label: 'Booking', key: 'booking_ref' }, { label: 'Container', key: 'container_no' },
+      { label: 'FX', key: 'fx_rate' }, { label: 'Branch', key: 'branch_code' }, { label: 'Shipment', key: 'shipment_ref' }, 
       { label: 'Customer', key: 'customer_name' }, { label: 'Supplier', key: 'supplier_name' }, { label: 'Description', key: 'description' }, { label: 'Memo', key: 'memo' }]));
   };
   if ($('#new', el)) $('#new', el).onclick = () => journalModal(load);
@@ -77,7 +77,7 @@ export async function journalDetail(id, done) {
       ${j.reversal_of_ref ? `<div class="callout info" style="margin-bottom:10px">${icon('info')}<div>${esc(t('acc_reversal_of'))} <b class="mono">${esc(j.reversal_of_ref)}</b></div></div>` : ''}
       <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('acc_account'))}</th><th>${esc(t('description'))}</th><th class="num">Dr</th><th class="num">Cr</th></tr></thead>
       <tbody>${lines.map((l) => `<tr><td><span class="mono small">${esc(l.account_code)}</span> ${esc(l.account_name)}${l.counterparty_company ? ` <span class="badge">IC ${esc(l.counterparty_company)}</span>` : ''}</td>
-        <td class="small">${esc(l.description || '')}<div class="muted">${[l.branch_code, l.booking_ref, l.container_no, l.customer_name, l.supplier_name, l.currency !== 'USD' ? `${l.currency} ${Number(l.amount_txn).toLocaleString()} @ ${l.fx_rate}` : ''].filter(Boolean).map(esc).join(' · ')}</div></td>
+        <td class="small">${esc(l.description || '')}<div class="muted">${[l.branch_code, l.shipment_ref, l.customer_name, l.supplier_name, l.currency !== 'USD' ? `${l.currency} ${Number(l.amount_txn).toLocaleString()} @ ${l.fx_rate}` : ''].filter(Boolean).map(esc).join(' · ')}</div></td>
         <td class="num">${Number(l.debit) ? usd(l.debit, { bare: true }) : ''}</td><td class="num">${Number(l.credit) ? usd(l.credit, { bare: true }) : ''}</td></tr>`).join('')}
         <tr style="font-weight:700"><td colspan="2">${esc(t('total'))}</td><td class="num">${usd(dr, { bare: true })}</td><td class="num">${usd(cr, { bare: true })}</td></tr></tbody></table></div>
       <p class="muted small" style="margin-top:10px">${esc(t('acc_prepared_by'))}: ${esc(j.created_by_name || t('acc_system'))} · ${fdatetime(j.created_at)}${j.approved_by_name ? ` — ${esc(t('acc_approved_by'))}: ${esc(j.approved_by_name)} · ${fdatetime(j.approved_at)}` : ''}</p>`,
