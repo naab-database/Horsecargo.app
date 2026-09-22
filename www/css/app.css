@@ -128,6 +128,11 @@ h3 { font-size: 15px; font-weight: 650; }
 .s-ready { background: var(--green-soft); color: var(--green); }
 .s-released { background: #e8ebef; color: #3f4b58; }
 .s-cancelled { background: var(--red-soft); color: var(--red); }
+.s-received_dubai { background: var(--blue-soft); color: var(--blue); }
+.s-packed { background: var(--violet-soft); color: var(--violet); }
+.s-dispatched { background: #e9e8fb; color: #4b43b8; }
+.s-in_customs { background: #fbeee2; color: #a2561a; }
+.s-delivered { background: var(--green-soft); color: var(--green); }
 .s-open { background: var(--blue-soft); color: var(--blue); }
 .s-departed { background: #e9e8fb; color: #4b43b8; }
 .s-completed { background: #e8ebef; color: #3f4b58; }
@@ -439,4 +444,55 @@ textarea.input { min-height: 72px; resize: vertical; }
   .login *, .login *::before, .login *::after { animation: none !important; }
   .login .plane { display: none; }
   .login .route-draw { stroke-dashoffset: 0; }
+}
+
+
+/* ───────── shipment wizard (v2) ───────── */
+.wiz { display: flex; flex-direction: column; gap: 12px; }
+.wiz-steps { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.wiz-steps::-webkit-scrollbar { display: none; }
+.wiz-step { display: flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; background: #fff;
+  border: 1px solid var(--line); white-space: nowrap; font-size: 12.5px; font-weight: 600; color: var(--ink-3); cursor: default; }
+.wiz-step .n { width: 19px; height: 19px; border-radius: 50%; background: var(--line-2); color: var(--ink-2);
+  display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.wiz-step.done { color: var(--brand); border-color: var(--brand-soft); cursor: pointer; }
+.wiz-step.done .n { background: var(--brand-soft); color: var(--brand); }
+.wiz-step.on { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: var(--shadow); }
+.wiz-step.on .n { background: rgba(255,255,255,.22); color: #fff; }
+.wiz-bar { height: 4px; border-radius: 4px; background: var(--line-2); overflow: hidden; }
+.wiz-bar > div { height: 100%; background: var(--brand); border-radius: 4px; transition: width .25s ease; }
+.wiz-foot { display: flex; align-items: center; gap: 10px; position: sticky; bottom: 0; padding: 10px 0;
+  background: linear-gradient(to top, var(--bg) 60%, transparent); }
+.wiz-foot .btn { min-height: 46px; min-width: 110px; justify-content: center; }
+
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pick { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line); background: #fff; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.pick:hover { border-color: var(--brand-3); }
+.pick.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: var(--shadow); }
+.pick .pi svg { width: 22px; height: 22px; color: var(--brand); }
+.pick b { font-size: 15px; }
+
+.calc { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.calc > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; font-size: 13.5px; border-bottom: 1px solid var(--line-2); }
+.calc > div:last-child { border-bottom: 0; }
+.calc > div span { color: var(--ink-2); }
+.calc .tot { background: var(--brand-soft); font-size: 16px; font-weight: 800; color: var(--brand); }
+
+.cust-hits { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.cust-hits .hit { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; font: inherit; }
+.cust-hits .hit:hover { border-color: var(--brand); background: var(--brand-soft); }
+
+.steps { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.steps::-webkit-scrollbar { display: none; }
+.steps .stp { flex: 1; min-width: 92px; font-size: 11px; font-weight: 650; color: var(--ink-3); }
+.steps .stp span { display: block; height: 5px; border-radius: 3px; background: var(--line-2); margin-bottom: 5px; }
+.steps .stp.done span { background: var(--brand-3); }
+.steps .stp.done { color: var(--ink-2); }
+.steps .stp.on span { background: var(--brand); }
+.steps .stp.on { color: var(--brand); }
+@media (max-width: 860px) {
+  .wiz-step .l { display: none; }
+  .wiz-step.on .l { display: inline; }
 }
