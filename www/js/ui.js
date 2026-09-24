@@ -53,10 +53,14 @@ export function usd(n, opts = {}) {
   const sign = v < 0 && Math.abs(v) >= 0.005 ? '-' : '';
   return opts.bare ? sign + s : `${sign}$${s}`;
 }
-export function money(n, cur = 'USD') {
+// one rounding policy everywhere: whole shillings for TZS, 2 decimals for USD / AED
+export function money(n, cur = 'USD', opts = {}) {
+  const c = cur || 'USD';
   const v = Number(n || 0);
-  const dec = cur === 'TZS' ? 0 : 2;
-  return `${cur} ${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+  const dec = c === 'TZS' ? 0 : 2;
+  const s = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const sign = v < 0 && Math.abs(v) >= (dec ? 0.005 : 0.5) ? '-' : '';
+  return opts.bare ? sign + s : `${sign}${c} ${s}`;
 }
 export function num(n, d = 2) {
   if (n === null || n === undefined || n === '') return '—';

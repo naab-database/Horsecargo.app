@@ -1,10 +1,14 @@
 import { t, tr } from '../i18n.js';
-import { from, run, rpc, can, isAdmin, state, errText, catName, publicTrackUrl, fxFor, branchName } from '../api.js';
+import { from, run, rpc, can, isAdmin, state, errText, catName, publicTrackUrl, verifyUrl, fxFor, branchName } from '../api.js';
 import {
   icon, esc, usd, money, num, fdate, fdatetime, ago, statusBadge, modeTag, route, modal, toast, confirmDialog,
   formData, checkRequired, busy, empty, qrSVG, whatsappLink, $, $$,
 } from '../ui.js';
 import { FLOW, payBadge } from './shipments.js';
+
+export const docBadge = (st) => st === 'approved' ? `<span class="badge s-ready">${esc(t('ds_approved'))}</span>`
+  : st === 'rejected' ? `<span class="badge s-cancelled">${esc(t('ds_rejected'))}</span>`
+  : `<span class="badge s-pending_deposit">${esc(t('ds_pending'))}</span>`;
 
 export async function render({ el, params, setTitle, rerender }) {
   const id = params[0];
@@ -21,12 +25,12 @@ export async function render({ el, params, setTitle, rerender }) {
   const grnLines = grn ? await run(from('grn_lines').select('*').eq('grn_id', grn.id).order('id')) : [];
   const closed = ['delivered', 'cancelled'].includes(s.status);
   const idx = FLOW.indexOf(s.status);
-  const bal = Number(s.balance_usd);
+  const bal = Number(s.balance_txn);
   const fx = Number(s.invoice_fx || 1);
   const cur = s.invoice_currency || 'USD';
+  const M = (v) => money(v, cur);
 
   const A = [];
-  if (!closed && can('shipment.status') && idx >= 0 && idx < FLOW.length - 2) A.push(`<button class="btn primary" data-act="status">${icon('truck')}${esc(t('update_status'))}</button>`);
   if (!closed && can('payment.record') && bal > 0.009) A.push(`<button class="btn accent" data-act="pay">${icon('money')}${esc(t('record_payment'))}</button>`);
   if (!closed && !grn && can('grn.record')) A.push(`<a class="btn" href="#/shipment/${s.id}/grn">${icon('scale')}${esc(t('record_grn'))}</a>`);
   if (!closed && s.status === 'arrived' && can('deliver')) A.push(`<button class="btn accent" data-act="deliver">${icon('release')}${esc(t('deliver_cargo'))}</button>`);
@@ -46,13 +50,19 @@ export async function render({ el, params, setTitle, rerender }) {
   <div class="stack">
     <div class="grid c4">
       <div class="card kpi"><div class="k">${esc(t('chargeable'))}</div><div class="v">${s.mode === 'sea' ? num(s.cbm, 3) : num(s.weight_kg || s.actual_kg, 1)}</div><div class="s">${s.mode === 'sea' ? 'CBM' : 'kg'} · USD ${num(s.rate_used, 2)}${s.rate_source === 'override' ? ` · ${esc(t('rate_overridden'))}` : ''}</div></div>
-      <div class="card kpi"><div class="k">${esc(t('invoice_total'))}</div><div class="v">${usd(s.invoice_total)}</div>${cur !== 'USD' ? `<div class="s">${money(s.invoice_total * fx, cur)}</div>` : ''}</div>
-      <div class="card kpi"><div class="k">${esc(t('paid'))}</div><div class="v ok">${usd(s.paid_usd)}</div></div>
-      <div class="card kpi"><div class="k">${esc(t('balance'))}</div><div class="v ${bal > 0.009 ? 'due' : 'ok'}">${usd(bal)}</div>${cur !== 'USD' ? `<div class="s">${money(bal * fx, cur)}</div>` : ''}</div>
+      <div class="card kpi"><div class="k">${esc(t('invoice_total'))}</div><div class="v">${M(s.invoice_total_txn)}</div>${cur !== 'USD' ? `<div class="s">USD ${num(s.invoice_total, 2)} · 1 USD = ${num(fx, 2)} ${esc(cur)}</div>` : ''}</div>
+      <div class="card kpi"><div class="k">${esc(t('paid'))}</div><div class="v ok">${M(s.paid_txn)}</div></div>
+      <div class="card kpi"><div class="k">${esc(t('balance'))}</div><div class="v ${bal > 0.009 ? 'due' : 'ok'}">${M(bal)}</div></div>
     </div>
 
     ${s.status !== 'cancelled' ? `<div class="card"><div class="card-b">
       <div class="steps">${FLOW.map((st, i) => `<div class="stp ${i < idx ? 'done' : ''} ${i === idx ? 'on' : ''}"><span></span><b>${esc(t('st_' + st))}</b></div>`).join('')}</div>
+      ${can('shipment.status') && !closed ? `<div class="status-btns" id="sbtns">
+        ${FLOW.filter((st) => st !== 'delivered').map((st) => `<button class="sbtn ${st === s.status ? 'on' : ''}" data-status="${st}" ${st === s.status ? 'disabled' : ''}>
+          ${st === s.status ? icon('check') : ''}${esc(t('st_' + st))}</button>`).join('')}
+        ${can('deliver') ? `<button class="sbtn last" data-act="deliver">${icon('release')}${esc(t('deliver_cargo'))}</button>` : ''}
+      </div>
+      <p class="muted small" style="margin:8px 2px 0">${esc(t('status_btn_hint'))}</p>` : ''}
     </div></div>` : ''}
 
     <div class="split">
@@ -64,12 +74,12 @@ export async function render({ el, params, setTitle, rerender }) {
 
         <div class="card"><div class="card-h"><h2>${esc(t('charges_pricing'))}</h2>
           ${!closed && can('charge.add') ? `<button class="btn sm" data-act="charge">${icon('plus')}${esc(t('add_charge'))}</button>` : ''}</div>
-          <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('description'))}</th><th class="num">${esc(t('qty'))}</th><th class="num">${esc(t('unit_price'))}</th><th class="num">${esc(t('amount'))}</th><th></th></tr></thead>
-          <tbody>${lines.map((l) => `<tr><td>${esc(l.description)}<div class="muted small">${esc(t('ch_' + (l.charge_type || l.kind)))} · ${esc(l.created_by_name || '')}</div></td>
-            <td class="num">${num(l.qty, 2)}</td><td class="num">${usd(l.unit_price, { bare: true })}</td>
-            <td class="num ${Number(l.amount) < 0 ? 'ok' : ''}">${usd(l.amount, { bare: true })}</td>
+          <div class="table-wrap"><table class="t"><thead><tr><th>${esc(t('description'))}</th><th class="num hide-m">${esc(t('qty'))}</th><th class="num hide-m">${esc(t('unit_price'))}</th><th class="num">${esc(t('amount'))}</th><th></th></tr></thead>
+          <tbody>${lines.map((l) => `<tr><td>${esc(l.description)}<div class="muted small">${esc(t('ch_' + (l.charge_type || l.kind)))} · ${esc(l.created_by_name || '')}${cur !== 'USD' ? ` · USD ${num(l.amount, 2)}` : ''}</div></td>
+            <td class="num hide-m">${num(l.qty, 2)}</td><td class="num hide-m">${num(l.unit_price, 2)}</td>
+            <td class="num ${Number(l.amount_txn ?? l.amount) < 0 ? 'ok' : ''}">${money(l.amount_txn ?? l.amount, cur, { bare: true })}</td>
             <td class="right">${l.kind !== 'freight' && can('charge.remove') && !closed ? `<button class="icon-btn" data-act="rmline" data-id="${l.id}">${icon('trash')}</button>` : ''}</td></tr>`).join('')}
-            <tr style="font-weight:800"><td colspan="3">${esc(t('grand_total'))}</td><td class="num">${usd(s.invoice_total, { bare: true })}</td><td></td></tr>
+            <tr style="font-weight:800"><td colspan="3" class="span-m">${esc(t('grand_total'))}</td><td class="num">${money(s.invoice_total_txn, cur, { bare: true })}</td><td></td></tr>
           </tbody></table></div>
           <div class="card-b row" style="gap:10px;flex-wrap:wrap">
             <span class="muted small">${esc(t('invoice'))}: <b class="mono">${esc(s.invoice_ref || '—')}</b></span>
@@ -97,9 +107,13 @@ export async function render({ el, params, setTitle, rerender }) {
           </div>
           <p class="muted small" style="margin:10px 0 0">${esc(t('condition'))}: ${esc(t('c_' + grn.condition))}${grn.condition_notes ? ' · ' + esc(grn.condition_notes) : ''} · ${fdatetime(grn.received_at)}</p>
           ${grnLines.length ? `<div class="table-wrap" style="margin-top:10px"><table class="t"><tbody>${grnLines.map((l) => `<tr>
-            <td>${num(l.pieces, 0)} × ${num(l.length_cm, 0)}×${num(l.width_cm, 0)}×${num(l.height_cm, 0)} cm</td>
-            <td class="num">${num(l.cbm, 4)} CBM</td><td class="num">${num(l.weight_kg, 1)} kg</td></tr>`).join('')}</tbody></table></div>` : ''}
+            <td>${num(l.pieces, 0)} ${esc(t('pieces').toLowerCase())}${l.length_cm && l.width_cm && l.height_cm ? ` · ${num(l.length_cm, 0)}×${num(l.width_cm, 0)}×${num(l.height_cm, 0)} cm` : ''}${l.packaging ? ` · ${esc(l.packaging)}` : ''}</td>
+            <td class="num">${l.cbm ? `${num(l.cbm, 4)} CBM` : '—'}</td><td class="num">${l.weight_kg ? `${num(l.weight_kg, 1)} kg` : '—'}</td></tr>`).join('')}</tbody></table></div>` : ''}
           </div></div>` : ''}
+
+        <div class="card" id="docs-card"><div class="card-h"><h2>${esc(t('documents'))}</h2>
+          <span class="muted small">${esc(t('scan_to_verify'))}</span></div>
+          <div id="docs"><div class="card-b"><div class="spinner"></div></div></div></div>
 
         ${can('acc.read') && state.companies.length ? `<div class="card" id="pnl-card"><div class="card-h"><h2>${esc(t('acc_costs_profit'))}</h2>
           ${can('acc.write') ? `<div class="row" style="gap:6px"><a class="btn sm" href="#/acc/expenses?new=1&shipment=${s.id}">${icon('plus')}${esc(t('acc_new_expense'))}</a>
@@ -141,6 +155,34 @@ export async function render({ el, params, setTitle, rerender }) {
     </div>
   </div>`;
 
+  // documents: register/refresh and show approval state
+  const loadDocs = async () => {
+    const box = $('#docs', el); if (!box) return;
+    try {
+      const types = [['invoice', s.invoice_id], ['grn', s.grn_id], ['waybill', s.id]];
+      if (rel) types.push(['release', rel.id]);
+      receipts.filter((r) => !r.void).forEach((r) => types.push(['receipt', r.id]));
+      const rows = [];
+      for (const [type, did] of types) {
+        if (!did) continue;
+        try { rows.push({ type, id: did, ...(await rpc('doc_register', { p_type: type, p_doc_id: did })) }); } catch { /* skip */ }
+      }
+      const DOCHREF = { invoice: `#/doc/invoice/${s.id}`, grn: `#/doc/grn/${s.id}`, waybill: `#/doc/waybill/${s.id}`,
+        release: rel ? `#/doc/release/${s.id}` : '#' };
+      box.innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><tbody>${rows.map((d) => `<tr>
+        <td><b class="mono">${esc(d.ref)}</b><div class="muted small">${esc(t('doct_' + d.type))}${d.version > 1 ? ` · v${d.version}` : ''}</div></td>
+        <td>${docBadge(d.status)}${d.approved_by ? `<div class="muted small">${esc(d.approved_by)}</div>` : ''}</td>
+        <td class="right nowrap">
+          <a class="icon-btn" href="${d.type === 'receipt' ? `#/doc/receipt/${d.id}` : DOCHREF[d.type]}" title="${esc(t('print'))}">${icon('print')}</a>
+          <a class="icon-btn" target="_blank" rel="noopener" href="${esc(verifyUrl(d.token))}" title="${esc(t('verify'))}">${icon('search')}</a>
+          ${can('doc.approve') && d.status !== 'approved' ? `<button class="btn sm primary" data-approve="${d.token}">${esc(t('approve'))}</button>` : ''}
+          ${can('doc.approve') && d.status === 'approved' ? `<button class="btn sm" data-reject="${d.token}">${esc(t('reject'))}</button>` : ''}
+        </td></tr>`).join('')}</tbody></table></div>`
+        : empty(t('nothing_here'), 'print');
+    } catch (err) { box.innerHTML = `<div class="card-b"><p class="muted small">${esc(errText(err))}</p></div>`; }
+  };
+  loadDocs();
+
   if (can('acc.read') && state.companies.length) {
     rpc('acc_shipment_pnl', { p_shipment: s.id }).then((p) => {
       const b = $('#pnl', el); if (!b) return;
@@ -157,6 +199,30 @@ export async function render({ el, params, setTitle, rerender }) {
   }
 
   el.addEventListener('click', async (e) => {
+    const sb = e.target.closest('[data-status]');
+    if (sb) {
+      if (sb.disabled) return;
+      const to = sb.dataset.status;
+      return busy(sb, async () => {
+        $$('#sbtns .sbtn', el).forEach((b) => { b.disabled = true; });      // no double submits
+        try { await rpc('set_shipment_status', { p_shipment: s.id, p_status: to, p_note: null, p_public: true });
+          toast(`${t('st_' + to)} ✓`); rerender();
+        } catch (err) { toast(errText(err), 'err'); $$('#sbtns .sbtn', el).forEach((b) => { b.disabled = b.dataset.status === s.status; }); }
+      });
+    }
+    const ap = e.target.closest('[data-approve]');
+    if (ap) return busy(ap, async () => {
+      try { await rpc('approve_document', { p_token: ap.dataset.approve, p_approve: true, p_note: null });
+        toast(t('approved_ok')); loadDocs(); } catch (err) { toast(errText(err), 'err'); }
+    });
+    const rj = e.target.closest('[data-reject]');
+    if (rj) {
+      const reason = await confirmDialog(t('reject_doc_q'), { danger: true, withReason: true, okText: t('reject') });
+      if (!reason) return;
+      try { await rpc('approve_document', { p_token: rj.dataset.reject, p_approve: false, p_note: reason });
+        toast(t('saved')); loadDocs(); } catch (err) { toast(errText(err), 'err'); }
+      return;
+    }
     const a = e.target.closest('[data-act]'); if (!a) return;
     const act = a.dataset.act;
     if (act === 'status') return statusModal(s, rerender);
@@ -235,15 +301,17 @@ function statusModal(s, done) {
 }
 
 function paymentModal(s, done) {
-  const due = Math.max(Number(s.balance_usd), 0);
+  const cur0 = s.invoice_currency || 'USD';
+  const fx0 = Number(s.invoice_fx || 1);
+  const due = Math.max(Number(s.balance_txn), 0);            // due in the billing currency
   modal({
     title: `${t('record_payment')} · ${s.ref}`,
     body: `<div class="callout ${due > 0 ? 'warn' : 'ok'}" style="margin-bottom:14px">${icon('money')}<div>${esc(t('amount_due'))}: <b>${usd(due)}</b></div></div>
       <form class="form" id="pay-form" novalidate>
         <div class="field"><label class="req">${esc(t('currency'))}</label><select class="input" name="currency">
-          ${['USD', 'AED', 'TZS'].map((c) => `<option ${c === (s.invoice_currency || 'USD') ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+          ${['USD', 'AED', 'TZS'].map((c) => `<option ${c === cur0 ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
         <div class="field"><label class="req">${esc(t('amount'))}</label><input class="input" name="amount" type="number" min="0" step="0.01" required inputmode="decimal"></div>
-        <div class="field"><label>${esc(t('fx_rate'))}</label><input class="input" name="fx_rate" type="number" step="0.0001" value="1"></div>
+        <div class="field"><label>${esc(t('fx_rate'))} <span class="muted small">(1 USD = …)</span></label><input class="input" name="fx_rate" type="number" step="0.0001" value="${fx0}"></div>
         <div class="field"><label>${esc(t('usd_equiv'))}</label><input class="input" id="usd-eq" readonly></div>
         <div class="field"><label class="req">${esc(t('method'))}</label><select class="input" name="method">
           ${['cash', 'bank', 'mobile_money', 'card'].map((x) => `<option value="${x}">${esc(t('m_' + x))}</option>`).join('')}</select></div>
@@ -256,9 +324,12 @@ function paymentModal(s, done) {
       let accs = [];
       const upd = (curChanged) => {
         if (curChanged) {
-          const r = fxFor(f.currency.value);
+          // paying in the invoice currency uses the invoice rate — the amount is never converted twice
+          const r = f.currency.value === cur0 ? fx0 : fxFor(f.currency.value);
           f.fx_rate.value = r; f.fx_rate.readOnly = f.currency.value === 'USD';
-          if (due > 0) f.amount.value = f.currency.value === 'TZS' ? Math.round(due * r) : (due * r).toFixed(2);
+          const dueUsd = due / fx0;
+          if (due > 0) f.amount.value = f.currency.value === cur0 ? (cur0 === 'TZS' ? Math.round(due) : due.toFixed(2))
+            : (f.currency.value === 'TZS' ? Math.round(dueUsd * r) : (dueUsd * r).toFixed(2));
         }
         m.el.querySelector('#usd-eq').value = usd(Number(f.amount.value || 0) / Number(f.fx_rate.value || 1));
         fillAcc();
@@ -302,7 +373,10 @@ function chargeModal(s, done) {
     body: `<form class="form" id="cf" novalidate>
       <div class="field"><label class="req">${esc(t('charge_type'))}</label><select class="input" name="charge_type">
         ${KINDS.map((k) => `<option value="${k}">${esc(t('ch_' + k))}</option>`).join('')}</select></div>
-      <div class="field"><label class="req">${esc(t('amount'))} USD</label><input class="input" type="number" step="0.01" min="0" name="unit_price" required inputmode="decimal"></div>
+      <div class="field"><label class="req">${esc(t('amount'))}</label><input class="input" type="number" step="0.01" min="0" name="unit_price" required inputmode="decimal"></div>
+      <div class="field"><label class="req">${esc(t('currency'))}</label><select class="input" name="currency">
+        <option value="${esc(s.invoice_currency || 'USD')}">${esc(s.invoice_currency || 'USD')} · ${esc(t('billing_currency'))}</option>
+        ${(s.invoice_currency || 'USD') !== 'USD' ? `<option value="USD">USD</option>` : ''}</select></div>
       <div class="field full"><label>${esc(t('description'))}</label><input class="input" name="description"></div>
       <div class="field"><label>${esc(t('qty'))}</label><input class="input" type="number" step="0.01" name="qty" value="1"></div>
     </form>
@@ -311,7 +385,8 @@ function chargeModal(s, done) {
     onMount: (m) => { m.el.querySelector('#cs').onclick = (ev) => busy(ev.currentTarget, async () => {
       const f = m.el.querySelector('#cf'); if (!checkRequired(f)) return;
       const d = formData(f);
-      try { await rpc('add_charge', { p_shipment: s.id, p_charge_type: d.charge_type, p_description: d.description || '', p_qty: d.qty || 1, p_unit_price: d.unit_price });
+      try { await rpc('add_charge', { p_shipment: s.id, p_charge_type: d.charge_type, p_description: d.description || '',
+          p_qty: d.qty || 1, p_unit_price: d.unit_price, p_currency: d.currency });
         m.close(); toast(t('saved')); done(); } catch (err) { toast(errText(err), 'err'); }
     }); },
   });
@@ -344,10 +419,10 @@ function currencyModal(s, done) {
 }
 
 function deliverModal(s, done) {
-  const bal = Number(s.balance_usd);
+  const bal = Number(s.balance_txn); const cur = s.invoice_currency || 'USD';
   modal({
     title: `${t('deliver_cargo')} · ${s.ref}`,
-    body: `${bal > 0.009 ? `<div class="callout warn" style="margin-bottom:12px">${icon('alert')}<div>${esc(t('balance_at_handover'))}: <b>${usd(bal)}</b></div></div>` : ''}
+    body: `${bal > 0.009 ? `<div class="callout warn" style="margin-bottom:12px">${icon('alert')}<div>${esc(t('balance_at_handover'))}: <b>${money(bal, cur)}</b></div></div>` : ''}
       <form class="form" id="df" novalidate>
         <div class="field"><label class="req">${esc(t('collector_name'))}</label><input class="input" name="name" required value="${esc(s.receiver_name)}"></div>
         <div class="field"><label class="req">${esc(t('collector_phone'))}</label><input class="input" type="tel" name="phone" required value="${esc(s.receiver_phone)}"></div>

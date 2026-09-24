@@ -349,6 +349,28 @@ const D = {
   new_password: ['New password', 'Nenosiri jipya'],
   language: ['Language', 'Lugha'],
 
+  // ───────── v3: documents, approval, TZS billing, GRN ─────────
+  documents: ['Documents', 'Nyaraka'],
+  doct_invoice: ['Invoice', 'Ankara'], doct_receipt: ['Payment receipt', 'Risiti ya malipo'],
+  doct_grn: ['Goods Received Note', 'Risiti ya ghala'], doct_release: ['Delivery note', 'Hati ya makabidhiano'],
+  doct_waybill: ['Shipment confirmation', 'Uthibitisho wa shipment'],
+  ds_pending: ['Pending approval', 'Inasubiri idhini'], ds_approved: ['Approved', 'Imeidhinishwa'], ds_rejected: ['Rejected', 'Imekataliwa'],
+  scan_to_verify: ['QR on every document opens its verification page', 'QR ya kila hati inafungua ukurasa wa uthibitisho'],
+  verify: ['Verification page', 'Ukurasa wa uthibitisho'],
+  approve: ['Approve', 'Idhinisha'],
+  reject: ['Reject', 'Kataa'],
+  approved_ok: ['Document approved', 'Hati imeidhinishwa'],
+  reject_doc_q: ['Reject this document?', 'Kataa hati hii?'],
+  status_btn_hint: ['One click changes the status. The previous status, the user and the time are recorded.', 'Bonyeza mara moja kubadilisha hali. Hali ya awali, mtumiaji na muda vinahifadhiwa.'],
+  billing_currency: ['billing currency', 'sarafu ya malipo'],
+  dims_optional_hint: ['Length, width and height are optional. You can type the CBM directly, or leave everything blank and just record the pieces.', 'Urefu, upana na kimo si lazima. Waweza kuandika CBM moja kwa moja, au kuacha wazi na kurekodi vipande tu.'],
+  auto: ['auto', 'otomatiki'],
+  cbm_from_dims: ['Calculated from the dimensions', 'Imehesabiwa kutoka vipimo'],
+  pieces_required: ['Enter the number of pieces on every line', 'Weka idadi ya vipande kwa kila mstari'],
+  default_billing_currency: ['Customer billing currency', 'Sarafu ya kuwatoza wateja'],
+  timezone: ['Company timezone', 'Saa za kampuni'],
+  company_prefix: ['Shipment number prefix', 'Herufi za mwanzo za namba'],
+
   // ───────── shipments module v2 ─────────
   shipments_sub: ['Every cargo consignment, Dubai → Tanzania', 'Kila mzigo, Dubai → Tanzania'],
   shipment: ['Shipment', 'Shipment'],

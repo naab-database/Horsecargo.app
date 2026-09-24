@@ -496,3 +496,62 @@ textarea.input { min-height: 72px; resize: vertical; }
   .wiz-step .l { display: none; }
   .wiz-step.on .l { display: inline; }
 }
+
+
+/* ───────── documents: QR verification block ───────── */
+.doc-top { display: flex; gap: 16px; align-items: flex-start; }
+.doc-top > *:first-child { flex: 1; min-width: 0; }
+.qr-box.verify { width: 150px; flex: 0 0 150px; text-align: center; padding: 8px; background: #fff;
+  border: 1px solid #ddd; border-radius: 8px; }
+.qr-box.verify svg { width: 120px; height: 120px; display: block; margin: 0 auto 6px; }
+.qr-box.verify .vq { font-size: 10.5px; color: #444; line-height: 1.25; }
+.qr-box.verify .vs { font-size: 10.5px; font-weight: 700; margin-top: 3px; }
+@media (max-width: 700px) { .doc-top { flex-direction: column; } .qr-box.verify { align-self: flex-start; } }
+@media print { .qr-box.verify { border-color: #999; } }
+
+
+/* ───────── one-click status buttons ───────── */
+.status-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.sbtn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 42px; border-radius: 10px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; font-size: 13px; font-weight: 650;
+  cursor: pointer; white-space: nowrap; }
+.sbtn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.sbtn svg { width: 15px; height: 15px; }
+.sbtn.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.sbtn.on:disabled { opacity: 1; cursor: default; }
+.sbtn:disabled { opacity: .55; cursor: not-allowed; }
+.sbtn.last { margin-left: auto; border-color: var(--green); color: var(--green); }
+.sbtn.last:hover:not(:disabled) { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+
+/* ───────── responsive polish (v3) ───────── */
+html, body { max-width: 100%; overflow-x: hidden; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.page-head { flex-wrap: wrap; gap: 10px; }
+.page-head .row { flex-wrap: wrap; }
+@media (max-width: 860px) {
+  .page-head h1 { font-size: 20px; }
+  .page-head .row .btn { flex: 1 1 auto; justify-content: center; }
+  .card-h { flex-wrap: wrap; gap: 8px; }
+  .card-h .row { width: 100%; }
+  .card-h .row .btn { flex: 1 1 auto; justify-content: center; }
+  .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .money { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .split { grid-template-columns: 1fr; }
+  .sbtn { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  .sbtn.last { flex: 1 1 100%; margin-left: 0; }
+  .modal { max-height: 88vh; }
+  .modal-b { max-height: calc(88vh - 130px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .form .field, .form .field.full { grid-column: 1 / -1; }
+  .input, .btn { font-size: 16px; }          /* stops iOS zooming the page on focus */
+  .btn { min-height: 44px; }
+  .icon-btn { min-width: 40px; min-height: 40px; }
+  .wiz-foot { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 520px) {
+  .grid.c4, .money { grid-template-columns: 1fr 1fr; }
+  .kpi .v { font-size: 20px; }
+  .t th, .t td { padding: 9px 8px; }
+}
+@media print {
+  .status-btns, .doc-toolbar, .bottom-nav, .side { display: none !important; }
+}

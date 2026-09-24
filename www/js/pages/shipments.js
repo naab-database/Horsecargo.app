@@ -1,6 +1,6 @@
 import { t } from '../i18n.js';
 import { from, run, can, state, destinations } from '../api.js';
-import { icon, esc, usd, num, fdate, statusBadge, modeTag, empty, debounce, $, $$, toCSV, downloadCSV } from '../ui.js';
+import { icon, esc, usd, money, num, fdate, statusBadge, modeTag, empty, debounce, $, $$, toCSV, downloadCSV } from '../ui.js';
 
 export const FLOW = ['received_dubai', 'packed', 'dispatched', 'in_transit', 'in_customs', 'arrived', 'delivered'];
 export const payBadge = (s) => s === 'paid' ? `<span class="badge s-ready">${esc(t('ps_paid'))}</span>`
@@ -68,7 +68,7 @@ export async function render({ el, setTitle, query }) {
     <td class="hide-m">${modeTag(s.mode)}</td>
     <td class="num hide-m nowrap">${s.mode === 'sea' ? num(s.cbm, 3) + ' CBM' : num(s.weight_kg || s.actual_kg, 1) + ' kg'}</td>
     <td>${statusBadge(s.status)}</td>
-    <td class="num nowrap">${usd(s.invoice_total)}${s.balance_usd > 0.009 && s.status !== 'cancelled' ? `<div class="small" style="color:var(--red)">${esc(t('balance'))} ${usd(s.balance_usd)}</div>` : ''}</td>
+    <td class="num nowrap">${money(s.invoice_total_txn, s.invoice_currency)}${s.balance_txn > 0.009 && s.status !== 'cancelled' ? `<div class="small" style="color:var(--red)">${esc(t('balance'))} ${money(s.balance_txn, s.invoice_currency)}</div>` : ''}</td>
     <td>${payBadge(s.payment_status)}</td></tr>`;
 
   $('#chips', el).onclick = (e) => { const c = e.target.closest('.chip'); if (!c) return; status = c.dataset.v; load(); };
@@ -86,6 +86,8 @@ export async function render({ el, setTitle, query }) {
     { label: 'Receiver', key: 'receiver_name' }, { label: 'Receiver phone', key: 'receiver_phone' },
     { label: 'Cargo', key: 'description' }, { label: 'CBM', key: 'cbm' }, { label: 'Weight kg', key: 'weight_kg' },
     { label: 'Rate USD', key: 'rate_used' }, { label: 'Freight USD', key: 'quoted_amount' },
+    { label: 'Currency', key: 'invoice_currency' }, { label: 'Exchange rate (1 USD)', key: 'invoice_fx' },
+    { label: 'Invoice total', key: 'invoice_total_txn' }, { label: 'Paid', key: 'paid_txn' }, { label: 'Balance', key: 'balance_txn' },
     { label: 'Invoice USD', key: 'invoice_total' }, { label: 'Paid USD', key: 'paid_usd' }, { label: 'Balance USD', key: 'balance_usd' },
     { label: 'Status', key: 'status' }, { label: 'Payment', key: 'payment_status' }, { label: 'Invoice no', key: 'invoice_ref' }]));
   await load();

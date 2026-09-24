@@ -25,8 +25,9 @@ export async function render({ el, params, setTitle }) {
         <div class="card-h"><h2>${esc(t('measurements'))}</h2><button class="btn sm" id="add-line">${icon('plus')}${esc(t('add_line'))}</button></div>
         <div class="card-b" style="padding:10px">
           <div class="muted small" style="padding:0 6px 8px">${esc(t('cargo_description'))}: ${esc(b.description)} · ${b.mode === 'sea' ? `${num(b.cbm, 3)} CBM` : `${num(b.weight_kg || b.actual_kg, 1)} kg`} ${esc(t('declared'))}</div>
+          <div class="callout info" style="margin:0 6px 10px">${icon('info')}<div class="small">${esc(t('dims_optional_hint'))}</div></div>
           <div class="table-wrap"><table class="t" id="lines"><thead><tr>
-            <th>${esc(t('pieces'))}</th><th>${esc(t('length_cm'))}</th><th>${esc(t('width_cm'))}</th><th>${esc(t('height_cm'))}</th><th>${esc(t('weight_kg'))}</th><th>${esc(t('packaging'))}</th><th class="num">CBM</th><th></th></tr></thead>
+            <th>${esc(t('pieces'))}</th><th>${esc(t('length_cm'))}</th><th>${esc(t('width_cm'))}</th><th>${esc(t('height_cm'))}</th><th>${esc(t('weight_kg'))}</th><th>CBM</th><th>${esc(t('packaging'))}</th><th></th></tr></thead>
             <tbody></tbody></table></div>
         </div>
       </div>
@@ -65,26 +66,39 @@ export async function render({ el, params, setTitle }) {
       <td><input class="input sm num" style="width:72px" type="number" min="0" step="0.1" data-k="width_cm" value="${v.width_cm ?? ''}" inputmode="decimal"></td>
       <td><input class="input sm num" style="width:72px" type="number" min="0" step="0.1" data-k="height_cm" value="${v.height_cm ?? ''}" inputmode="decimal"></td>
       <td><input class="input sm num" style="width:80px" type="number" min="0" step="0.1" data-k="weight_kg" value="${v.weight_kg ?? ''}" inputmode="decimal"></td>
+      <td><input class="input sm num" style="width:92px" type="number" min="0" step="0.0001" data-k="cbm" value="${v.cbm ?? ''}" inputmode="decimal" placeholder="${esc(t('auto'))}"></td>
       <td><select class="input sm" data-k="packaging" style="width:110px">${['Carton', 'Bale', 'Pallet', 'Crate', 'Sack', 'Loose'].map((p) => `<option>${p}</option>`).join('')}</select></td>
-      <td class="num" data-cbm>0</td>
       <td><button class="icon-btn" data-rm title="×">${icon('trash')}</button></td>`;
     tbody.appendChild(tr);
     calc();
-    tr.querySelector('[data-k=length_cm]').focus();
+    tr.querySelector('[data-k=pieces]').focus();
   };
 
+  // blank stays blank — a missing measurement is never turned into a number
   const readLines = () => $$('tr', tbody).map((tr) => {
-    const o = {}; tr.querySelectorAll('[data-k]').forEach((i) => { o[i.dataset.k] = i.dataset.k === 'packaging' ? i.value : Number(i.value || 0); });
+    const o = {};
+    tr.querySelectorAll('[data-k]').forEach((i) => {
+      o[i.dataset.k] = i.dataset.k === 'packaging' ? i.value : (i.value === '' ? null : Number(i.value));
+    });
     return o;
   });
+  const lineCbm = (l) => {
+    if (l.cbm !== null && l.cbm >= 0) return { cbm: Number(l.cbm), src: 'manual' };
+    if (l.length_cm > 0 && l.width_cm > 0 && l.height_cm > 0) {
+      return { cbm: Math.round((l.pieces || 1) * l.length_cm * l.width_cm * l.height_cm / 1e6 * 10000) / 10000, src: 'dimensions' };
+    }
+    return { cbm: 0, src: null };
+  };
 
   const calc = () => {
     let pcs = 0, cbm = 0, kg = 0;
+    const rows = readLines();
     $$('tr', tbody).forEach((tr, i) => {
-      const l = readLines()[i];
-      const c = l.pieces * l.length_cm * l.width_cm * l.height_cm / 1e6;
-      tr.querySelector('[data-cbm]').textContent = c.toFixed(4);
-      pcs += l.pieces; cbm += c; kg += l.weight_kg;
+      const l = rows[i]; const c = lineCbm(l);
+      const box = tr.querySelector('[data-k=cbm]');
+      box.title = c.src === 'dimensions' ? t('cbm_from_dims') : '';
+      if (c.src === 'dimensions') box.placeholder = c.cbm.toFixed(4); else if (!box.value) box.placeholder = t('auto');
+      pcs += (l.pieces || 0); cbm += c.cbm; kg += (l.weight_kg || 0);
     });
     cbm = Math.round(cbm * 1000) / 1000;
     const vol = cbm * 1e6 / Number(s.air_volumetric_divisor);
@@ -98,6 +112,14 @@ export async function render({ el, params, setTitle }) {
   };
 
   tbody.addEventListener('input', calc);
+  tbody.addEventListener('change', (e) => {
+    const k = e.target.dataset && e.target.dataset.k;
+    if (!['length_cm', 'width_cm', 'height_cm', 'pieces'].includes(k)) return;
+    const tr = e.target.closest('tr'); const box = tr.querySelector('[data-k=cbm]');
+    if (box.value !== '') return;                       // a typed CBM is never overwritten
+    const i = $$('tr', tbody).indexOf(tr); const c = lineCbm(readLines()[i]);
+    if (c.src === 'dimensions') { box.value = c.cbm; calc(); }
+  });
   tbody.addEventListener('click', (e) => { if (e.target.closest('[data-rm]')) { e.target.closest('tr').remove(); calc(); } });
   $('#add-line', el).onclick = () => addLine();
   $('#cond', el).onclick = (e) => { const x = e.target.closest('button'); if (x) $$('#cond button', el).forEach((y) => y.classList.toggle('on', y === x)); };
@@ -105,10 +127,10 @@ export async function render({ el, params, setTitle }) {
 
   $('#save', el).onclick = (e) => {
     const lines = readLines();
-    const bad = lines.some((l) => !(l.pieces > 0 && l.length_cm > 0 && l.width_cm > 0 && l.height_cm > 0));
-    if (!lines.length || bad) { toast(t('required_fields'), 'err'); return; }
+    if (!lines.length) { toast(t('required_fields'), 'err'); return; }
+    if (lines.some((l) => !(l.pieces > 0))) { toast(t('pieces_required'), 'err'); return; }
     const tot = calc();
-    confirmDialog(`${t('grn_confirm')}\n${tot.pcs} pcs · ${tot.cbm.toFixed(3)} CBM · ${num(tot.kg, 1)} kg`).then((ok) => {
+    confirmDialog(`${t('grn_confirm')}\n${tot.pcs} pcs${tot.cbm ? ` · ${tot.cbm.toFixed(3)} CBM` : ''}${tot.kg ? ` · ${num(tot.kg, 1)} kg` : ''}`).then((ok) => {
       if (!ok) return;
       busy(e.target.closest('button'), async () => {
         try {
@@ -119,7 +141,7 @@ export async function render({ el, params, setTitle }) {
           toast(`${t('grn_saved')} · ${r.grn_ref}`);
           modal({
             title: r.grn_ref,
-            body: `<div class="callout ok">${icon('check')}<div><b>${esc(t('grn_saved'))}</b><br>${r.pieces} pcs · ${num(r.cbm, 3)} CBM · ${num(r.kg, 1)} kg</div></div>`,
+            body: `<div class="callout ok">${icon('check')}<div><b>${esc(t('grn_saved'))}</b><br>${r.pieces} pcs${r.cbm ? ` · ${num(r.cbm, 3)} CBM` : ''}${r.kg ? ` · ${num(r.kg, 1)} kg` : ''}</div></div>`,
             foot: `<a class="btn" data-close href="#/shipment/${b.id}">${esc(t('shipment'))}</a><a class="btn primary" data-close href="#/doc/label/${b.id}">${icon('tag')}${esc(t('print_labels'))}</a>`,
           });
           location.hash = `#/shipment/${b.id}`;

@@ -18,7 +18,8 @@ export async function render({ el, params, setTitle, query }) {
     destination_branch: destinations()[0]?.code || 'DAR',
     sender: blankParty(), receiver: blankParty(),
     items: [{ description: '', category_id: state.categories[0]?.id || null, qty: 1, unit: 'PCS' }],
-    cbm: '', weight_kg: '', rate: '', rate_note: '', charges: [], currency: 'USD', fx_rate: '', notes: '',
+    cbm: '', weight_kg: '', rate: '', rate_note: '', charges: [],
+    currency: state.settings?.default_billing_currency || 'TZS', fx_rate: '', notes: '',
   };
   let existing = null;
   if (editId) {
@@ -57,7 +58,15 @@ export async function render({ el, params, setTitle, query }) {
 
   const price = () => estimateFreight(d.mode, primaryCat(), d.cbm, d.weight_kg, d.rate === '' ? null : d.rate);
   const primaryCat = () => d.items.find((i) => i.category_id)?.category_id || state.categories[0]?.id;
-  const chargesTotal = () => d.charges.reduce((a, c) => a + Number(c.amount || 0), 0);
+  const fxNow = () => (d.fx_rate === '' ? fxFor(d.currency) : Number(d.fx_rate)) || 1;
+  // every charge is converted at most once, into the billing currency
+  const chargeTxn = (c) => {
+    const amt = Number(c.amount || 0);
+    return (c.currency || d.currency) === 'USD' && d.currency !== 'USD' ? amt * fxNow() : amt;
+  };
+  const chargesTxn = () => d.charges.reduce((a, c) => a + chargeTxn(c), 0);
+  const chargesTotal = () => d.charges.reduce((a, c) => a + ((c.currency || d.currency) === 'USD' ? Number(c.amount || 0) : Number(c.amount || 0) / fxNow()), 0);
+  const grandTxn = () => Math.round((price() * fxNow() + chargesTxn()) * 100) / 100;
   const grand = () => Math.round((price() + chargesTotal()) * 100) / 100;
 
   // ───────── step renderers ─────────
@@ -94,9 +103,10 @@ export async function render({ el, params, setTitle, query }) {
         <div><span>×</span><b>USD ${num(d.rate === '' ? rateFor(d.mode, primaryCat()) : d.rate, 2)}</b></div>
         <div class="tot"><span>${esc(t('base_shipping'))}</span><b>${usd(price())}</b></div></div>`,
     charges: () => `<div class="calc">
-        <div><span>${esc(t('base_shipping'))}</span><b>${usd(price())}</b></div>
-        <div><span>${esc(t('additional_charges'))}</span><b>${usd(chargesTotal())}</b></div>
-        <div class="tot"><span>${esc(t('grand_total'))}</span><b>${usd(grand())}</b></div></div>`,
+        <div><span>${esc(t('base_shipping'))}</span><b>${money(price() * fxNow(), d.currency)}</b></div>
+        <div><span>${esc(t('additional_charges'))}</span><b>${money(chargesTxn(), d.currency)}</b></div>
+        <div class="tot"><span>${esc(t('grand_total'))}</span><b>${money(grandTxn(), d.currency)}</b></div>
+        ${d.currency !== 'USD' ? `<div><span>USD</span><b>${usd(grand())}</b></div>` : ''}</div>`,
   };
 
   const views = {
@@ -153,26 +163,28 @@ export async function render({ el, params, setTitle, query }) {
 
     charges: () => `<p class="muted small" style="margin-top:0">${esc(t('charges_hint'))}</p>
       <div class="table-wrap"><table class="t" id="charges"><thead><tr>
-        <th>${esc(t('charge_type'))}</th><th>${esc(t('description'))}</th><th class="num">${esc(t('amount'))} USD</th><th></th></tr></thead>
+        <th>${esc(t('charge_type'))}</th><th>${esc(t('description'))}</th><th class="num">${esc(t('amount'))}</th><th>${esc(t('currency'))}</th><th></th></tr></thead>
       <tbody>${d.charges.map((c, i) => `<tr>
         <td><select class="input sm" data-ch="${i}.charge_type">${CHARGES.map((k) => `<option value="${k}" ${c.charge_type === k ? 'selected' : ''}>${esc(t('ch_' + k))}</option>`).join('')}</select></td>
         <td><input class="input sm" data-ch="${i}.description" value="${esc(c.description || '')}" style="min-width:140px"></td>
         <td><input class="input sm num" type="number" step="0.01" min="0" data-ch="${i}.amount" value="${esc(String(c.amount || ''))}" style="width:110px"></td>
+        <td><select class="input sm" data-ch="${i}.currency" style="width:92px">
+          ${[d.currency, 'USD'].filter((x, j, a) => a.indexOf(x) === j).map((cc) => `<option value="${cc}" ${(c.currency || d.currency) === cc ? 'selected' : ''}>${cc}</option>`).join('')}</select></td>
         <td><button type="button" class="icon-btn" data-rm-ch="${i}">${icon('trash')}</button></td></tr>`).join('')}
       </tbody></table></div>
       <button type="button" class="btn sm" id="add-ch" style="margin-top:10px">${icon('plus')}${esc(t('add_charge'))}</button>
       <div id="sum" style="margin-top:14px">${sums.charges()}</div>`,
 
     currency: () => {
-      const fx = d.fx_rate === '' ? fxFor(d.currency) : Number(d.fx_rate);
+      const fx = fxNow();
       return `<div class="pick-grid">
         ${['USD', 'TZS', 'AED'].map((c) => `<button type="button" class="pick ${d.currency === c ? 'on' : ''}" data-cur="${c}">
           <span class="pi">${icon('money')}</span><b>${c}</b>
-          <span class="muted small">${money(grand() * (c === 'USD' ? 1 : fxFor(c)), c)}</span></button>`).join('')}
+          <span class="muted small">${money(c === d.currency ? grandTxn() : grand() * (c === 'USD' ? 1 : fxFor(c)), c)}</span></button>`).join('')}
       </div>
       <div class="form" style="margin-top:14px">
-        <div class="field"><label>${esc(t('fx_rate'))} (1 USD)</label><input class="input" type="number" step="0.0001" data-f="fx_rate" value="${esc(String(fx))}" ${d.currency === 'USD' ? 'readonly' : ''}></div>
-        <div class="field"><label>${esc(t('amount_due'))}</label><input class="input" value="${money(grand() * fx, d.currency)}" readonly></div>
+        <div class="field"><label class="req">${esc(t('fx_rate'))} · 1 USD = </label><input class="input" type="number" step="0.0001" min="0.0001" data-f="fx_rate" value="${esc(String(fx))}" ${d.currency === 'USD' ? 'readonly' : ''}></div>
+        <div class="field"><label>${esc(t('amount_due'))}</label><input class="input" value="${money(grandTxn(), d.currency)}" readonly></div>
       </div>
       <p class="muted small">${esc(t('fx_hint'))}</p>`;
     },
@@ -189,10 +201,10 @@ export async function render({ el, params, setTitle, query }) {
           ${rev(t('measure'), d.mode === 'sea' ? `${num(d.cbm, 3)} CBM` : `${num(d.weight_kg, 1)} kg`)}
           <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="card-b">
             <div class="calc">
-              <div><span>${esc(t('base_shipping'))}</span><b>${usd(price())}</b></div>
-              ${d.charges.filter((c) => Number(c.amount)).map((c) => `<div><span>${esc(t('ch_' + c.charge_type))}${c.description ? ' · ' + esc(c.description) : ''}</span><b>${usd(c.amount)}</b></div>`).join('')}
-              <div class="tot"><span>${esc(t('grand_total'))}</span><b>${usd(grand())}</b></div>
-              ${d.currency !== 'USD' ? `<div><span>${esc(d.currency)}</span><b>${money(grand() * (d.fx_rate === '' ? fxFor(d.currency) : Number(d.fx_rate)), d.currency)}</b></div>` : ''}
+              <div><span>${esc(t('base_shipping'))}</span><b>${money(price() * fxNow(), d.currency)}</b></div>
+              ${d.charges.filter((c) => Number(c.amount)).map((c) => `<div><span>${esc(t('ch_' + c.charge_type))}${c.description ? ' · ' + esc(c.description) : ''}</span><b>${money(c.amount, c.currency || d.currency)}</b></div>`).join('')}
+              <div class="tot"><span>${esc(t('grand_total'))}</span><b>${money(grandTxn(), d.currency)}</b></div>
+              ${d.currency !== 'USD' ? `<div><span>USD · 1 USD = ${num(fxNow(), 2)} ${esc(d.currency)}</span><b>${usd(grand())}</b></div>` : ''}
             </div></div></div>
           <div class="form"><div class="field full"><label>${esc(t('notes'))}</label><textarea class="input" rows="2" data-f="notes">${esc(d.notes)}</textarea></div></div>
         </div>
@@ -264,7 +276,7 @@ export async function render({ el, params, setTitle, query }) {
       };
     });
     const add = $('#add-item', body); if (add) add.onclick = () => { d.items.push({ description: '', category_id: primaryCat(), qty: 1, unit: 'PCS' }); draw(); };
-    const addc = $('#add-ch', body); if (addc) addc.onclick = () => { d.charges.push({ charge_type: 'packing', description: '', amount: '' }); draw(); };
+    const addc = $('#add-ch', body); if (addc) addc.onclick = () => { d.charges.push({ charge_type: 'packing', description: '', amount: '', currency: d.currency }); draw(); };
     body.onclick = (e) => {
       const ri = e.target.closest('[data-rm-item]'); if (ri) { d.items.splice(Number(ri.dataset.rmItem), 1); draw(); return; }
       const rc = e.target.closest('[data-rm-ch]'); if (rc) { d.charges.splice(Number(rc.dataset.rmCh), 1); draw(); }
@@ -308,7 +320,8 @@ export async function render({ el, params, setTitle, query }) {
           await rpc('update_shipment', { p: payload });
           toast(t('saved')); location.hash = `#/shipment/${editId}`;
         } else {
-          payload.charges = d.charges.filter((c) => Number(c.amount) > 0);
+          payload.charges = d.charges.filter((c) => Number(c.amount) > 0)
+            .map((c) => ({ charge_type: c.charge_type, description: c.description, amount: Number(c.amount), currency: c.currency || d.currency }));
           payload.currency = d.currency; payload.fx_rate = d.fx_rate === '' ? null : Number(d.fx_rate);
           const r = await rpc('create_shipment', { p: payload });
           toast(`${t('shipment_created')} · ${r.ref}`);

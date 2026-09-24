@@ -86,6 +86,7 @@ const PERMS = {
   'acc.read': ['accountant', 'finance_manager', 'manager'],
   'acc.write': ['accountant', 'finance_manager'],
   'acc.approve': ['finance_manager'],
+  'doc.approve': ['manager', 'finance_manager'],
 };
 export function can(action) {
   const r = state.profile?.role;
@@ -119,6 +120,14 @@ export const fxFor = (cur) => {
   return cur === 'AED' ? Number(s.fx_aed) : cur === 'TZS' ? Number(s.fx_tzs) : 1;
 };
 export const destinations = () => state.branches.filter((b) => b.code !== 'DXB' && b.active);
+
+export function appBase() {
+  const cfg2 = window.HC_CONFIG || {};
+  if (cfg2.APP_URL) return cfg2.APP_URL.replace(/\/+$/, '') + '/';
+  if (cfg2.PUBLIC_TRACK_URL) return cfg2.PUBLIC_TRACK_URL.replace(/[^/]*$/, '');
+  return location.origin + location.pathname.replace(/[^/]*$/, '');
+}
+export const verifyUrl = (token) => `${appBase()}verify.html?d=${encodeURIComponent(token)}`;
 
 export function publicTrackUrl(ref) {
   const base = cfg.PUBLIC_TRACK_URL || (location.origin + location.pathname.replace(/[^/]*$/, '') + 'track.html');

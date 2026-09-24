@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#800c1f">
+  <meta name="robots" content="noindex">
+  <title>Verify document · Horse Cargo</title>
+  <link rel="icon" href="icons/favicon-96.png">
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    .hero { background: radial-gradient(900px 400px at 20% 0%, #a3223a 0%, #800c1f 60%, #4a0612 100%); color: #fff;
+            padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 90px; }
+    .hero .in { max-width: 640px; margin: 0 auto; }
+    .hero h1 { font-size: 26px; margin: 16px 0 6px; }
+    .hero p { color: #f0d3d9; margin: 0; }
+    .wrap { max-width: 640px; margin: -60px auto 40px; padding: 0 16px; }
+    .vbig { font-size: 22px; font-weight: 800; }
+    .vrow { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line-2); font-size: 14px; }
+    .vrow:last-child { border-bottom: 0; }
+    .vrow span { color: var(--ink-2); }
+    .vrow b { text-align: right; word-break: break-word; }
+    .vstat { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; font-weight: 800; font-size: 16px; }
+    .vstat.ok { background: var(--green-soft); color: var(--green); }
+    .vstat.wait { background: var(--amber-soft); color: #8a5a00; }
+    .vstat.no { background: var(--red-soft); color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="hero"><div class="in">
+    <img src="img/logo-white.png" alt="Horse Cargo" style="height:46px">
+    <h1>Document verification</h1>
+    <p>Check that a Horse Cargo document is genuine and approved.</p>
+  </div></div>
+  <div class="wrap">
+    <div class="card"><div class="card-b" id="out">
+      <div class="boot" style="min-height:120px"><div class="spinner"></div></div>
+    </div></div>
+    <p class="muted small" style="text-align:center;margin-top:14px">
+      Questions? Dubai +971 50 608 3531 · Dar es Salaam +255 778 222 251 · Mwanza +255 797 000 254
+    </p>
+  </div>
+
+  <script src="vendor/supabase.js"></script>
+  <script src="config.js"></script>
+  <script>
+    (function () {
+      var cfg = window.HC_CONFIG || {};
+      var out = document.getElementById('out');
+      var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); };
+      var TYPE = { invoice: 'Invoice', receipt: 'Payment receipt', grn: 'Goods Received Note',
+                   release: 'Delivery note', waybill: 'Shipment confirmation' };
+      var token = new URLSearchParams(location.search).get('d') || '';
+
+      function fdt(v) {
+        if (!v) return '—';
+        var d = new Date(v);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
+               d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      }
+      function row(k, v) { return '<div class="vrow"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>'; }
+      function show(html) { out.innerHTML = html; }
+
+      if (!token) {
+        show('<div class="vstat no">No document code</div><p class="muted small" style="margin-top:12px">' +
+             'Scan the QR code printed on the document.</p>');
+        return;
+      }
+      if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('YOUR-PROJECT') > -1) {
+        show('<div class="vstat no">Verification is not configured</div>'); return;
+      }
+      var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+      sb.rpc('verify_document', { p_token: token }).then(function (r) {
+        if (r.error) { show('<div class="vstat no">Could not check this document</div>' +
+          '<p class="muted small" style="margin-top:12px">Please try again.</p>'); return; }
+        var d = r.data;
+        if (!d || !d.found) {
+          show('<div class="vstat no">Document not found</div>' +
+               '<p class="muted small" style="margin-top:12px">This code does not match any Horse Cargo document. ' +
+               'It may have been cancelled, or the code may be mistyped.</p>');
+          return;
+        }
+        var cls = d.status === 'approved' ? 'ok' : d.status === 'pending' ? 'wait' : 'no';
+        var label = d.status === 'approved' ? 'Approved' : d.status === 'pending' ? 'Pending approval'
+                  : d.status === 'rejected' ? 'Rejected' : 'Void';
+        var html = '<div class="vstat ' + cls + '">' + esc(label) + '</div>';
+        if (d.superseded) {
+          html += '<p class="muted small" style="margin:12px 0 0">This document was changed after it was approved. ' +
+                  'The printed copy is out of date — ask Horse Cargo for the current version.</p>';
+        }
+        html += '<div class="vbig" style="margin:16px 0 4px">' + esc(d.document_no || '') + '</div>' +
+                '<div class="muted small" style="margin-bottom:10px">' + esc(TYPE[d.document_type] || d.document_type) + '</div>' +
+                row('Shipment', d.shipment_ref || '—') +
+                row('Issued', fdt(d.issued_at)) +
+                row('Version', d.version) +
+                (d.approved_by ? row('Approved by', d.approved_by) : '') +
+                (d.approved_at ? row('Approved at', fdt(d.approved_at)) : '') +
+                row('Checked at', fdt(d.checked_at)) +
+                '<p class="muted small" style="margin-top:14px">' + esc(d.company || 'Horse Cargo') +
+                ' · This page confirms the document exists and its approval status. ' +
+                'Amounts and customer details are not shown here.</p>' +
+                '<a class="btn" style="margin-top:12px" href="track.html">Track a shipment</a>';
+        show(html);
+      }).catch(function () {
+        show('<div class="vstat no">Could not connect</div><p class="muted small" style="margin-top:12px">Please try again.</p>');
+      });
+    })();
+  </script>
+</body>
+</html>

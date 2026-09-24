@@ -20,6 +20,9 @@ export async function render({ el, setTitle }) {
     </div></div>
     <div class="card"><div class="card-h"><h2>${esc(t('commercial_rules'))}</h2></div><div class="card-b form">
       ${f('min_cbm_sea', 'number', '0.01')}${f('air_volumetric_divisor', 'number', '1')}
+      <div class="field"><label>${esc(t('default_billing_currency'))}</label><select class="input" name="default_billing_currency">
+        ${['TZS', 'USD', 'AED'].map((c) => `<option value="${c}" ${s.default_billing_currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+      ${f('timezone', 'text')}
       ${f('fx_aed', 'number', '0.0001')}${f('fx_tzs', 'number', '0.01')}${f('free_storage_days', 'number', '1')}${f('storage_rate_per_day', 'number', '0.01')}
     </div></div>
     <div class="card"><div class="card-h"><h2>${esc(t('branches'))}</h2></div><div class="card-b tight"><table class="t"><tbody>
