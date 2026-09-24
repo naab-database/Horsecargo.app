@@ -555,3 +555,36 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media print {
   .status-btns, .doc-toolbar, .bottom-nav, .side { display: none !important; }
 }
+
+/* ── v4 · storage, packing and special access ───────────────────────── */
+.pk-unpacked         { background: var(--red-soft);   color: var(--red); }
+.pk-partially_packed { background: var(--blue-soft);  color: var(--blue); }
+.pk-fully_packed     { background: var(--green-soft); color: var(--green); }
+.pkbar { display: block; height: 4px; border-radius: 999px; background: var(--line-2); margin-top: 5px; overflow: hidden; max-width: 130px; }
+.pkbar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; transition: width .2s ease; }
+.void-row td { opacity: .55; }
+.struck { text-decoration: line-through; }
+.pill { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--brand); color: #fff; font-size: 11px; line-height: 17px; text-align: center; }
+.chip.on .pill { background: #fff; color: var(--brand); }
+.pack-t td { vertical-align: middle; }
+.pack-t .qty { width: 78px; text-align: right; padding: 6px 8px; }
+.pack-t .all-btn { display: block; margin: 3px 0 0 auto; font-size: 11px; }
+button.link { background: none; border: 0; padding: 0; color: var(--brand); font-weight: 600; cursor: pointer; }
+.lbl { font-size: 12px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.hint { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
+.note { display: flex; gap: 10px; align-items: flex-start; padding: 11px 14px; border-radius: 10px; font-size: 13px; }
+.note svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.note.info { background: var(--blue-soft); color: var(--blue); }
+
+@media (max-width: 720px) {
+  /* on a phone the packing sheet reads as a stack of items, not a wide table */
+  .pack-t thead { display: none; }
+  .pack-t, .pack-t tbody, .pack-t tr, .pack-t td { display: block; width: 100%; }
+  .pack-t tr { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .pack-t td { border: 0; padding: 2px 0; text-align: left !important; }
+  .pack-t td[data-l]::before { content: attr(data-l); }
+  .pack-t td:nth-child(2), .pack-t td:nth-child(3), .pack-t td:nth-child(4) { display: inline-block; width: auto; margin-right: 14px; font-size: 12.5px; color: var(--ink-3); }
+  .pack-t .qty { width: 100%; text-align: left; margin-top: 6px; font-size: 16px; }
+  .pack-t .all-btn { margin: 4px 0 0; }
+  .pkbar { max-width: none; }
+}

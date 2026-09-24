@@ -5,6 +5,7 @@ import {
   formData, checkRequired, busy, empty, qrSVG, whatsappLink, $, $$,
 } from '../ui.js';
 import { FLOW, payBadge } from './shipments.js';
+import { stateBadge, bar, packingModal } from './storage.js';
 
 export const docBadge = (st) => st === 'approved' ? `<span class="badge s-ready">${esc(t('ds_approved'))}</span>`
   : st === 'rejected' ? `<span class="badge s-cancelled">${esc(t('ds_rejected'))}</span>`
@@ -12,7 +13,7 @@ export const docBadge = (st) => st === 'approved' ? `<span class="badge s-ready"
 
 export async function render({ el, params, setTitle, rerender }) {
   const id = params[0];
-  const [s, items, lines, receipts, events, rel, grn] = await Promise.all([
+  const [s, items, lines, receipts, events, rel, grn, store] = await Promise.all([
     run(from('v_shipments').select('*').eq('id', id).single()),
     run(from('v_shipment_items').select('*').eq('shipment_id', id).order('id')),
     run(from('v_invoice_lines').select('*').eq('shipment_id', id).eq('invoice_status', 'issued').order('id')),
@@ -20,9 +21,11 @@ export async function render({ el, params, setTitle, rerender }) {
     run(from('v_events').select('*').eq('shipment_id', id).order('created_at', { ascending: false })),
     run(from('v_releases').select('*').eq('shipment_id', id).maybeSingle()),
     run(from('grns').select('*').eq('shipment_id', id).maybeSingle()),
+    run(from('v_storage').select('*').eq('shipment_id', id).maybeSingle()).catch(() => null),
   ]);
   setTitle(s.ref);
   const grnLines = grn ? await run(from('grn_lines').select('*').eq('grn_id', grn.id).order('id')) : [];
+  const storeItems = store ? await run(from('v_storage_items').select('*').eq('shipment_id', id).order('id')) : [];
   const closed = ['delivered', 'cancelled'].includes(s.status);
   const idx = FLOW.indexOf(s.status);
   const bal = Number(s.balance_txn);
@@ -109,6 +112,25 @@ export async function render({ el, params, setTitle, rerender }) {
           ${grnLines.length ? `<div class="table-wrap" style="margin-top:10px"><table class="t"><tbody>${grnLines.map((l) => `<tr>
             <td>${num(l.pieces, 0)} ${esc(t('pieces').toLowerCase())}${l.length_cm && l.width_cm && l.height_cm ? ` · ${num(l.length_cm, 0)}×${num(l.width_cm, 0)}×${num(l.height_cm, 0)} cm` : ''}${l.packaging ? ` · ${esc(l.packaging)}` : ''}</td>
             <td class="num">${l.cbm ? `${num(l.cbm, 4)} CBM` : '—'}</td><td class="num">${l.weight_kg ? `${num(l.weight_kg, 1)} kg` : '—'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+          </div></div>` : ''}
+
+        ${store ? `<div class="card"><div class="card-h"><h2>${esc(t('storage'))}</h2>
+          <div class="row" style="gap:8px">${stateBadge(store.state)}
+            ${can('storage.pack') && store.state !== 'fully_packed' && s.status !== 'cancelled'
+              ? `<button class="btn sm" id="pack-btn">${esc(t('record_packing'))}</button>` : ''}
+            <a class="btn sm" href="#/storage/${esc(id)}">${esc(t('history'))}</a></div></div>
+          <div class="card-b">
+            <div class="money">
+              <div><div class="k">${esc(t('received'))}</div><div class="v">${num(store.received_qty, 0)}</div></div>
+              <div><div class="k">${esc(t('packed'))}</div><div class="v">${num(store.packed_qty, 0)}</div></div>
+              <div><div class="k">${esc(t('remaining'))}</div><div class="v">${num(store.remaining_qty, 0)}</div></div>
+            </div>
+            ${bar(store.received_qty, store.packed_qty)}
+            <div class="table-wrap" style="margin-top:10px"><table class="t"><tbody>${storeItems.map((i) => `<tr>
+              <td>${esc(i.description)}<div class="muted small">${esc(i.unit)}</div></td>
+              <td class="num">${num(i.packed_qty, 0)} / ${num(i.received_qty, 0)}</td>
+              <td>${stateBadge(i.state)}</td></tr>`).join('')}</tbody></table></div>
+            <p class="muted small" style="margin:10px 0 0">${esc(t('packing_vs_status'))}.</p>
           </div></div>` : ''}
 
         <div class="card" id="docs-card"><div class="card-h"><h2>${esc(t('documents'))}</h2>
@@ -199,6 +221,7 @@ export async function render({ el, params, setTitle, rerender }) {
   }
 
   el.addEventListener('click', async (e) => {
+    if (e.target.closest('#pack-btn')) return packingModal(id, rerender);
     const sb = e.target.closest('[data-status]');
     if (sb) {
       if (sb.disabled) return;

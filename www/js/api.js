@@ -6,7 +6,7 @@ export const sb = configured
   ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'hc.auth' } })
   : null;
 
-export const state = { user: null, profile: null, settings: null, branches: [], categories: [], companies: [] };
+export const state = { user: null, profile: null, settings: null, branches: [], categories: [], companies: [], perms: null };
 
 // ───────── error translation (server refusals → readable text) ─────────
 const SW = {
@@ -46,7 +46,21 @@ export async function loadSession() {
   const { data: p, error } = await sb.from('profiles').select('*').eq('id', state.user.id).maybeSingle();
   if (error) throw error;
   state.profile = p;
+  await loadPermissions();
   return p;
+}
+
+// What this user may actually do, straight from the database: their role's
+// permissions plus anything the administrator has lent them temporarily.
+// The screen hides what they cannot do; the server refuses it regardless.
+export async function loadPermissions() {
+  try {
+    const list = await rpc('my_permissions');
+    state.perms = Array.isArray(list) ? list : [];
+  } catch {
+    state.perms = null;      // fall back to the role table below
+  }
+  return state.perms;
 }
 export async function loadReference(force = false) {
   if (state.settings && !force) return;
@@ -61,7 +75,9 @@ export async function loadReference(force = false) {
 export const branchName = (code) => state.branches.find((b) => b.code === code)?.name || code || '—';
 export const catName = (row) => (getLang() === 'sw' && row.category_name_sw) ? row.category_name_sw : row.category_name;
 
-// ───────── permissions (mirror of has_role() in the database) ─────────
+// ───────── permissions ─────────
+// state.perms, loaded from the database, is what decides. This table is only a
+// fallback for the moment before it arrives (or if that one call fails).
 const PERMS = {
   'customer.write': ['manager', 'counter', 'cashier'],
   'shipment.create': ['manager', 'counter', 'operations', 'warehouse'],
@@ -87,13 +103,20 @@ const PERMS = {
   'acc.write': ['accountant', 'finance_manager'],
   'acc.approve': ['finance_manager'],
   'doc.approve': ['manager', 'finance_manager'],
+  'storage.read': ['manager', 'counter', 'warehouse', 'operations', 'cashier', 'accountant', 'release_officer'],
+  'storage.pack': ['manager', 'warehouse', 'operations'],
+  'storage.correct': ['manager'],
+  'staff.manage': [],
 };
 export function can(action) {
   const r = state.profile?.role;
   if (!r || !state.profile?.active) return false;
   if (r === 'admin') return true;
+  if (Array.isArray(state.perms)) return state.perms.includes(action);
   return (PERMS[action] || []).includes(r);
 }
+export const hasGranted = (action) =>
+  Array.isArray(state.perms) && state.perms.includes(action) && !(PERMS[action] || []).includes(state.profile?.role);
 export const isAdmin = () => state.profile?.role === 'admin' && state.profile?.active;
 
 // ───────── pricing preview (the server is authoritative) ─────────

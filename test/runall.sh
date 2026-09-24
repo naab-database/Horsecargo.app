@@ -11,6 +11,6 @@ restart_server() {
 for suite in "$@"; do
   ./reset.sh >/dev/null 2>&1; roles; restart_server
   echo "══════════ $suite ══════════"
-  node "$suite" 2>&1 | grep -E "✗|ERRORS|Error|error:" -A2 | head -20
+  node "$suite" 2>&1 | grep -E "✗|ERRORS|Error|error:" -A2 | head -24
   echo "   (finished $suite)"
 done

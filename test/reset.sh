@@ -6,7 +6,7 @@ su postgres -c "psql -q -c \"select pg_terminate_backend(pid) from pg_stat_activ
 su postgres -c "psql -q -c 'drop database if exists hc' -c 'create database hc'" >/dev/null
 su postgres -c "psql -d hc -v ON_ERROR_STOP=1 -q -f test/supabase_shim.sql -f supabase/schema.sql -f supabase/seed.sql" 2>&1 | grep -v NOTICE
 su postgres -c "psql -d hc -v ON_ERROR_STOP=1 -q -f supabase/accounting-1-roles.sql"
-su postgres -c "psql -d hc -v ON_ERROR_STOP=1 -q -f supabase/accounting-2.sql -f supabase/shipments-v2.sql -f supabase/documents-v3.sql" 2>&1 | grep -v NOTICE
+su postgres -c "psql -d hc -v ON_ERROR_STOP=1 -q -f supabase/accounting-2.sql -f supabase/shipments-v2.sql -f supabase/documents-v3.sql -f supabase/staff-storage-v4.sql -f test/v4_helpers.sql" 2>&1 | grep -v NOTICE
 su postgres -c "psql -d hc -q" <<'SQL'
 insert into auth.users(id,email,encrypted_password,raw_user_meta_data) values
  ('00000000-0000-0000-0000-000000000001','admin@hc.test',crypt('Pass1234!',gen_salt('bf')),'{"full_name":"Abdul Admin"}');

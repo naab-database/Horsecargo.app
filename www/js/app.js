@@ -9,6 +9,9 @@ const ROUTES = [
   [/^\/shipment\/([\w-]+)\/edit$/, 'shipment-new', 'shipments'],
   [/^\/shipment\/([\w-]+)\/grn$/, 'grn', 'shipments'],
   [/^\/shipment\/([\w-]+)$/, 'shipment', 'shipments'],
+  [/^\/storage$/, 'storage', 'storage'],
+  [/^\/storage\/([\w-]+)$/, 'storage-shipment', 'storage'],
+  [/^\/packing-list$/, 'packing-list', 'packing_list'],
   [/^\/customers$/, 'customers', 'customers'],
   [/^\/customer\/([\w-]+)$/, 'customer', 'customers'],
   [/^\/scan$/, 'scan', 'scan'],
@@ -37,6 +40,8 @@ function navItems() {
   const items = [
     { key: 'dashboard', href: '#/', ic: 'dashboard' },
     { key: 'shipments', href: '#/shipments', ic: 'box' },
+    { key: 'storage', href: '#/storage', ic: 'warehouse', show: can('storage.read') },
+    { key: 'packing_list', href: '#/packing-list', ic: 'clipboard' },
     { key: 'customers', href: '#/customers', ic: 'users' },
     { key: 'scan', href: '#/scan', ic: 'scan' },
     { sep: true, label: 'accounting', show: can('acc.read') && state.companies.length > 0 },
